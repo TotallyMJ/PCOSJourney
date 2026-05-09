@@ -19,3 +19,13 @@ Thumbs.db
 
 # Personal user data exports
 bloom_data_*.json
+
+# Local Claude config (workspace-specific)
+.claude/
+
+# Old reference files (not part of app)
+bloom-app/
+pcos_bloom_complete_final.html
+pcos_how_to_use_and_mockups.html
+Bloom_with_Your_Body_PCOS_Printable_Journal.pdf
+feedback.txt
