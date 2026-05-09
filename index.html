@@ -4189,10 +4189,31 @@ if(S.profile.setupComplete || S.profile.name){
   if(syncReady()) setTimeout(autoSyncOnLoad, 800);
 }
 
-// Service Worker registration (offline + PWA)
+// Service Worker registration (offline + PWA + auto-update)
 if('serviceWorker' in navigator) {
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('sw.js').catch(err=>console.warn('SW registration failed:',err));
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      // Check for updates every time app gains focus
+      reg.update();
+      window.addEventListener('focus', ()=>reg.update());
+      // When new SW found, install and reload
+      reg.addEventListener('updatefound', ()=>{
+        const newWorker = reg.installing;
+        if(newWorker) newWorker.addEventListener('statechange', ()=>{
+          if(newWorker.state==='installed' && navigator.serviceWorker.controller){
+            // New version ready · activate it
+            newWorker.postMessage('SKIP_WAITING');
+          }
+        });
+      });
+      // Reload when new SW takes over
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+        if(refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+    }).catch(err=>console.warn('SW registration failed:',err));
   });
 }
 </script>

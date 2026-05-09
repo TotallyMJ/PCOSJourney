@@ -1,5 +1,9 @@
-// Bloom — PCOS Wellness Journal · Service Worker
-const CACHE = 'bloom-v1';
+// Bloom — PCOS Wellness Journal · Service Worker (v2)
+// Strategy:
+// - HTML: network-first (always try latest, fallback to cache offline)
+// - Static assets: cache-first (fast loads)
+// - CDN: network-first with cache fallback
+const CACHE = 'bloom-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -9,14 +13,12 @@ const ASSETS = [
   './icon-maskable.svg'
 ];
 
-// Install: pre-cache core assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
   );
 });
 
-// Activate: clean old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -25,16 +27,30 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: cache-first for same-origin GET, network-first for cross-origin
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
   const isSameOrigin = url.origin === self.location.origin;
+  const isHTML = req.destination === 'document' ||
+                 url.pathname === '/' ||
+                 url.pathname.endsWith('/') ||
+                 url.pathname.endsWith('.html');
 
-  if (isSameOrigin) {
-    // Cache-first
+  if (isSameOrigin && isHTML) {
+    // Network-first for HTML — always check for updates
+    event.respondWith(
+      fetch(req).then((resp) => {
+        if (resp.ok) {
+          const clone = resp.clone();
+          caches.open(CACHE).then((cache) => cache.put(req, clone));
+        }
+        return resp;
+      }).catch(() => caches.match(req).then((r) => r || caches.match('./index.html')))
+    );
+  } else if (isSameOrigin) {
+    // Cache-first for static assets
     event.respondWith(
       caches.match(req).then((cached) =>
         cached ||
@@ -44,11 +60,11 @@ self.addEventListener('fetch', (event) => {
             caches.open(CACHE).then((cache) => cache.put(req, clone));
           }
           return resp;
-        }).catch(() => caches.match('./index.html'))
+        })
       )
     );
   } else {
-    // Network-first for CDN (fonts, sortable.js)
+    // Network-first for CDN (fonts, libraries)
     event.respondWith(
       fetch(req).then((resp) => {
         if (resp.ok) {
@@ -59,4 +75,9 @@ self.addEventListener('fetch', (event) => {
       }).catch(() => caches.match(req))
     );
   }
+});
+
+// Listen for skipWaiting message from page
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
