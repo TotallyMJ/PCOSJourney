@@ -3853,8 +3853,9 @@ function buildSettings(){
     <div class="sync-btn-row">
       <button class="sync-btn primary" onclick="manualSyncToCloud()">↑ ส่งขึ้น</button>
       <button class="sync-btn" onclick="manualSyncFromCloud()">↓ ดึงลง</button>
-      <button class="sync-btn danger" onclick="disconnectSync()">ยกเลิก</button>
+      <button class="sync-btn" onclick="disconnectSync()">ตัด sync</button>
     </div>
+    <button class="sync-btn danger" onclick="disconnectAndDeleteCloud()" style="width:100%;margin-top:6px">⚠️ ตัด sync + ลบ Gist ในคลาวด์</button>
   ` : `
     <p class="small" style="margin-bottom:10px;line-height:1.6">เชื่อม GitHub ครั้งเดียว แล้ว:<br>
     ✓ <b>Auto backup</b> ทุกครั้งที่บันทึก<br>
@@ -3975,7 +3976,44 @@ function exportData(){
   a.download='bloom_data_'+todayStr()+'.json';a.click();
 }
 function confirmClear(){
-  if(confirm('ล้างข้อมูลทั้งหมด? กู้คืนไม่ได้นะ')){localStorage.removeItem(STORE_KEY);location.reload();}
+  const hasSync = S.sync && S.sync.pat && S.sync.gistId;
+  if(hasSync) {
+    const ok = confirm('ล้างข้อมูลในเครื่องนี้?\n\n✓ Token + Gist ID จะถูกเก็บไว้\n✓ ข้อมูลในคลาวด์ยังอยู่ (โหลดกลับมาให้อัตโนมัติ)\n\nถ้าอยากลบทุกอย่างรวมคลาวด์ด้วย ให้กดยกเลิก แล้วใช้ "⚠️ ตัด sync + ลบคลาวด์"');
+    if(!ok) return;
+    const sync = { ...S.sync };
+    localStorage.removeItem(STORE_KEY);
+    const fresh = {
+      profile:{ name:'', intention:'', age:null, height:null, goal:'maintain', activity:'light', cycleLen:28, meds:[], moduleOrder:ALL_MODULES.map(m=>m.id), modulesEnabled:Object.fromEntries(ALL_MODULES.map(m=>[m.id,m.default])), moduleOrderV:MODULE_ORDER_V, updatedAt:0 },
+      entries:{}, weekly:{}, monthly:{}, groceryList:[],
+      medical:{ appointments:[], labs:[], notes:[] },
+      sync
+    };
+    localStorage.setItem(STORE_KEY, JSON.stringify(fresh));
+  } else {
+    if(!confirm('ล้างข้อมูลทั้งหมด? กู้คืนไม่ได้นะ')) return;
+    localStorage.removeItem(STORE_KEY);
+  }
+  location.reload();
+}
+
+// Disconnect + delete cloud Gist
+async function disconnectAndDeleteCloud(){
+  if(!syncReady()) return;
+  if(!confirm('⚠️ ลบข้อมูลในคลาวด์ + ยกเลิก sync?\n\n· Gist บน GitHub จะถูกลบ\n· Token จะถูกลบจากเครื่องนี้\n· กู้คืนไม่ได้')) return;
+  try {
+    const res = await fetch(`https://api.github.com/gists/${S.sync.gistId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization':`Bearer ${S.sync.pat}`, 'Accept':'application/vnd.github+json' }
+    });
+    if(!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
+    showToast('ลบ Gist + ตัด sync แล้ว');
+  } catch(e) {
+    if(!confirm('ลบ Gist ไม่สำเร็จ: '+e.message+'\n\nต้องการตัด sync ฝั่งเครื่องนี้อย่างเดียวมั้ย?')) return;
+  }
+  S.sync = { enabled:false, gistId:'', pat:'', lastSync:0 };
+  saveS();
+  setSyncStatus('idle');
+  renderView('settings');
 }
 
 function loadSampleData(){
@@ -4181,13 +4219,31 @@ function showToast(msg){
 // INIT
 // ═══════════════════════════════════════
 loadS();
-if(S.profile.setupComplete || S.profile.name){
-  document.getElementById('setup').style.display='none';
-  document.getElementById('app').classList.add('show');
-  switchTab('home');
-  // If sync enabled, check cloud for newer data (non-blocking)
-  if(syncReady()) setTimeout(autoSyncOnLoad, 800);
-}
+
+(async function init(){
+  // If sync configured but local is empty (e.g. after clear-data on this device),
+  // pull from cloud BEFORE deciding setup vs app
+  const localEmpty = !S.profile?.setupComplete && !Object.keys(S.entries||{}).length;
+  if(syncReady() && localEmpty){
+    try {
+      showToast('กำลังโหลดข้อมูลจากคลาวด์...');
+      const remote = await syncFromCloud();
+      if(remote && (remote.profile?.setupComplete || Object.keys(remote.entries||{}).length)){
+        S = { ...remote, sync: S.sync };
+        localStorage.setItem(STORE_KEY, JSON.stringify(S));
+        showToast('โหลดข้อมูลจากคลาวด์แล้ว ☁️↓');
+      }
+    } catch(e){ console.warn('Initial cloud pull failed:', e); }
+  }
+
+  if(S.profile.setupComplete || S.profile.name){
+    document.getElementById('setup').style.display='none';
+    document.getElementById('app').classList.add('show');
+    switchTab('home');
+    // Background check for newer cloud data
+    if(syncReady() && !localEmpty) setTimeout(autoSyncOnLoad, 800);
+  }
+})();
 
 // Service Worker registration (offline + PWA + auto-update)
 if('serviceWorker' in navigator) {
