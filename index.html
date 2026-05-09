@@ -470,6 +470,55 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .cmp-row-delta.down{background:var(--red-l);color:var(--red-dk)}
 .cmp-row-delta.flat{background:white;color:var(--text-m)}
 
+/* === CLOUD SYNC === */
+.sync-pill{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;padding:4px 9px;border-radius:12px;background:var(--subtle);color:var(--text-s);transition:all .25s;font-weight:500;line-height:1}
+.sync-pill.idle{display:none}
+.sync-pill.pending{background:var(--orange-l);color:var(--orange-dk)}
+.sync-pill.syncing{background:var(--purple-l);color:var(--purple-dkr)}
+.sync-pill.synced{background:var(--green-l);color:var(--green-dk)}
+.sync-pill.error{background:var(--red-l);color:var(--red-dk);cursor:pointer}
+@keyframes syncpulse{0%,100%{opacity:1}50%{opacity:.4}}
+.sync-pill.syncing .sync-ic{animation:syncpulse 1.2s infinite}
+
+.sync-status-card{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:12px;margin-bottom:10px}
+.sync-status-card.on{background:linear-gradient(135deg,var(--green-l),#F4FAEB)}
+.sync-status-card.off{background:var(--subtle)}
+.sync-status-ic{font-size:26px;line-height:1;flex-shrink:0}
+.sync-status-info{flex:1;min-width:0}
+.sync-status-h{font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px}
+.sync-status-s{font-size:11px;color:var(--text-s);line-height:1.4;word-break:break-word}
+
+.sync-btn-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.sync-btn{flex:1;min-width:80px;padding:9px;background:var(--subtle);color:var(--text);border-radius:9px;font-size:12px;font-weight:500;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}
+.sync-btn:active{transform:scale(.97)}
+.sync-btn.primary{background:linear-gradient(135deg,var(--purple),var(--purple-dk));color:white}
+.sync-btn.danger{background:var(--red-l);color:var(--red-dk)}
+
+/* Modal */
+#sync-modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:600;display:none;align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto}
+#sync-modal.show{display:flex}
+.sync-modal-box{background:white;border-radius:16px;padding:20px;max-width:440px;width:100%;max-height:calc(100vh - 48px);overflow-y:auto;color:var(--text)}
+.sync-modal-h{font-size:17px;font-weight:600;margin-bottom:4px}
+.sync-modal-sub{font-size:12px;color:var(--text-s);margin-bottom:16px;line-height:1.5}
+.sync-step{display:grid;grid-template-columns:30px 1fr;gap:11px;padding:13px 0;border-bottom:1px solid var(--border-l)}
+.sync-step:last-of-type{border-bottom:none}
+.sync-step-num{width:28px;height:28px;border-radius:50%;background:var(--purple);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
+.sync-step-content{min-width:0}
+.sync-step-content p{margin-bottom:7px;font-size:13px;line-height:1.5}
+.sync-step-content p b{color:var(--text)}
+.sync-step-content ol{font-size:12px;padding-left:18px;line-height:1.8;color:var(--text-s);margin-top:5px}
+.sync-step-content ol code{background:var(--subtle);padding:1px 5px;border-radius:4px;font-size:11px;color:var(--purple-dkr);font-family:monospace}
+.sync-step-content ol b{color:var(--text)}
+.sync-link-btn{display:inline-flex;align-items:center;gap:5px;background:var(--purple-l);color:var(--purple-dkr);padding:8px 13px;border-radius:9px;font-size:12px;font-weight:600;text-decoration:none;margin:4px 0;transition:all .15s}
+.sync-link-btn:active{transform:scale(.97)}
+.sync-pat-input{width:100%;background:var(--subtle);border:1.5px solid var(--border-l);border-radius:9px;padding:10px 12px;font-size:13px;font-family:monospace;outline:none}
+.sync-pat-input:focus{border-color:var(--purple-m)}
+.sync-modal-actions{display:flex;gap:8px;margin-top:18px}
+.sync-modal-actions button{flex:1;padding:12px;border-radius:11px;font-size:13px;font-weight:600;border:none;cursor:pointer}
+.sync-modal-cancel{background:var(--subtle);color:var(--text-s)}
+.sync-modal-connect{background:linear-gradient(135deg,var(--purple),var(--purple-dk));color:white}
+.sync-warning{background:var(--orange-l);color:var(--orange-dk);padding:8px 11px;border-radius:9px;font-size:11px;line-height:1.5;margin-top:8px}
+
 /* === MEDS ADHERENCE DOTS === */
 .med-dot{display:inline-block;width:11px;height:11px;border-radius:50%;border:1.5px solid var(--border-l);background:transparent;flex-shrink:0}
 .med-dot.taken{background:var(--green);border-color:var(--green)}
@@ -724,6 +773,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
     <button class="tb-btn" id="tb-back" onclick="goBack()" style="display:none">←</button>
     <div class="tb-logo" id="tb-logo">🌸</div>
     <div class="tb-title" id="tb-title">หน้าแรก</div>
+    <span class="sync-pill idle" id="sync-pill" onclick="onSyncPillClick()"></span>
     <button class="tb-btn" onclick="switchTab('settings')">⚙️</button>
   </div>
   <div id="view" class="fade-up"></div>
@@ -747,6 +797,43 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 </div>
 
 <div id="toast"></div>
+
+<!-- CLOUD SYNC SETUP MODAL -->
+<div id="sync-modal">
+  <div class="sync-modal-box">
+    <div class="sync-modal-h">☁️ เชื่อม GitHub Gist</div>
+    <div class="sync-modal-sub">ตั้งค่าครั้งเดียว · ใช้เวลา ~5 นาที · ฟรี 100%</div>
+
+    <div class="sync-step">
+      <div class="sync-step-num">1</div>
+      <div class="sync-step-content">
+        <p><b>สร้าง Personal Access Token (PAT)</b></p>
+        <a class="sync-link-btn" href="https://github.com/settings/tokens/new?description=Bloom+PCOS+App&scopes=gist" target="_blank" rel="noopener">เปิดหน้า GitHub →</a>
+        <ol>
+          <li><b>Note:</b> "Bloom PCOS App"</li>
+          <li><b>Expiration:</b> เลือกตามต้องการ (90 days หรือ No expiration)</li>
+          <li><b>Scopes:</b> เช็ค ✓ <code>gist</code> เท่านั้น</li>
+          <li>กด <b>Generate token</b></li>
+          <li>คัดลอก token ที่ขึ้นมา (ขึ้นครั้งเดียว!)</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="sync-step">
+      <div class="sync-step-num">2</div>
+      <div class="sync-step-content">
+        <p><b>วาง Token ที่นี่</b></p>
+        <input type="password" class="sync-pat-input" id="sync-pat-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+        <div class="sync-warning">⚠️ Token เก็บใน localStorage ของเครื่องนี้เท่านั้น · ถ้าเครื่องหาย/โดนยืม ให้ revoke token ที่ GitHub ทันที</div>
+      </div>
+    </div>
+
+    <div class="sync-modal-actions">
+      <button class="sync-modal-cancel" onclick="closeSyncModal()">ยกเลิก</button>
+      <button class="sync-modal-connect" onclick="onConnectClick()">เชื่อม</button>
+    </div>
+  </div>
+</div>
 
 <!-- DOCTOR PREP VIEW (printable) -->
 <div id="docprep-view">
@@ -804,7 +891,8 @@ let S = {
     modulesEnabled: Object.fromEntries(ALL_MODULES.map(m=>[m.id, m.default]))
   },
   entries:{}, weekly:{}, monthly:{}, groceryList:[],
-  medical:{ appointments:[], labs:[], notes:[] }
+  medical:{ appointments:[], labs:[], notes:[] },
+  sync:{ enabled:false, gistId:'', pat:'', lastSync:0 }
 };
 const PCOS_LABS = ['Fasting Insulin','Fasting Glucose','HbA1c','Testosterone (Total)','Testosterone (Free)','DHEA-S','LH','FSH','AMH','Estradiol','Progesterone','Vit D (25-OH)','TSH','Free T4','Prolactin','SHBG','Cholesterol','Triglycerides','HDL','LDL'];
 const NOTE_TAG_TH = { question:'❓ คำถาม', observation:'👀 ข้อสังเกต', other:'📝 อื่นๆ' };
@@ -860,11 +948,223 @@ function loadS() {
       if(!S.medical.appointments) S.medical.appointments = [];
       if(!S.medical.labs) S.medical.labs = [];
       if(!S.medical.notes) S.medical.notes = [];
+      // Ensure sync block
+      if(!S.sync) S.sync = { enabled:false, gistId:'', pat:'', lastSync:0 };
     }
   } catch(e){console.error(e);}
 }
-function saveS() { localStorage.setItem(STORE_KEY, JSON.stringify(S)); }
+function saveS() {
+  if(S.profile) S.profile.updatedAt = Date.now();
+  localStorage.setItem(STORE_KEY, JSON.stringify(S));
+  scheduleSyncToCloud();
+}
 function nid(){return Math.random().toString(36).slice(2,9);}
+
+// ═══════════════════════════════════════
+// CLOUD SYNC (GitHub Gist)
+// ═══════════════════════════════════════
+let syncTimer = null;
+let _syncing = false;
+const GIST_FILE = 'bloom_data.json';
+const GIST_DESC = 'bloom-pcos-data';
+
+function syncReady(){return S.sync && S.sync.enabled && S.sync.pat && S.sync.gistId;}
+
+function setSyncStatus(state, msg){
+  const pill = document.getElementById('sync-pill');
+  if(!pill) return;
+  pill.className = 'sync-pill ' + state;
+  if(state === 'idle') { pill.textContent = ''; return; }
+  const labels = { pending:'⏳ รอ sync', syncing:'☁️ syncing...', synced:'✓ บันทึกในคลาวด์', error:'⚠️ sync ผิดพลาด' };
+  pill.innerHTML = `<span class="sync-ic"></span>${msg||labels[state]||''}`;
+}
+function onSyncPillClick(){
+  // If error, retry; otherwise show settings
+  if(document.getElementById('sync-pill').classList.contains('error')) syncToCloud();
+  else switchTab('settings');
+}
+
+function scheduleSyncToCloud(){
+  if(!syncReady()) return;
+  setSyncStatus('pending');
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(syncToCloud, 2500);
+}
+
+async function syncToCloud(){
+  if(!syncReady() || _syncing) return;
+  _syncing = true;
+  setSyncStatus('syncing');
+  try {
+    // Strip pat from synced data (don't sync the token itself)
+    const data = JSON.parse(JSON.stringify(S));
+    if(data.sync) data.sync = { ...data.sync, pat:'' };
+    const res = await fetch(`https://api.github.com/gists/${S.sync.gistId}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${S.sync.pat}`,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(data, null, 2) } } })
+    });
+    if(!res.ok) throw new Error('sync failed: HTTP '+res.status);
+    S.sync.lastSync = Date.now();
+    localStorage.setItem(STORE_KEY, JSON.stringify(S));
+    setSyncStatus('synced');
+    setTimeout(()=>{if(syncReady() && !_syncing) setSyncStatus('idle');}, 3000);
+  } catch(err) {
+    console.error('Sync error:', err);
+    setSyncStatus('error', '⚠️ ไม่ได้บันทึก');
+  } finally {
+    _syncing = false;
+  }
+}
+
+async function syncFromCloud(){
+  if(!syncReady()) return null;
+  try {
+    setSyncStatus('syncing');
+    const res = await fetch(`https://api.github.com/gists/${S.sync.gistId}?_=${Date.now()}`, {
+      headers: {
+        'Authorization': `Bearer ${S.sync.pat}`,
+        'Accept': 'application/vnd.github+json'
+      }
+    });
+    if(!res.ok) throw new Error('fetch failed: HTTP '+res.status);
+    const gist = await res.json();
+    const content = gist.files?.[GIST_FILE]?.content;
+    if(!content) throw new Error('no '+GIST_FILE+' in gist');
+    setSyncStatus('synced');
+    return JSON.parse(content);
+  } catch(err) {
+    console.error('Pull error:', err);
+    setSyncStatus('error', '⚠️ ดึงไม่ได้');
+    return null;
+  }
+}
+
+async function findOrCreateGist(pat){
+  // List user's gists, find existing with our description
+  const listRes = await fetch('https://api.github.com/gists', {
+    headers: { 'Authorization':`Bearer ${pat}`, 'Accept':'application/vnd.github+json' }
+  });
+  if(!listRes.ok) throw new Error('PAT ใช้ไม่ได้ · ตรวจสอบว่ามี scope "gist"');
+  const gists = await listRes.json();
+  const existing = gists.find(g => g.description === GIST_DESC && g.files && g.files[GIST_FILE]);
+  if(existing) return { gistId: existing.id, isNew: false };
+  // Create new
+  const createData = JSON.parse(JSON.stringify(S));
+  if(createData.sync) createData.sync = { ...createData.sync, pat:'' };
+  const createRes = await fetch('https://api.github.com/gists', {
+    method:'POST',
+    headers:{ 'Authorization':`Bearer ${pat}`, 'Accept':'application/vnd.github+json', 'Content-Type':'application/json' },
+    body: JSON.stringify({
+      description: GIST_DESC,
+      public: false,
+      files: { [GIST_FILE]: { content: JSON.stringify(createData, null, 2) } }
+    })
+  });
+  if(!createRes.ok) throw new Error('สร้าง Gist ใหม่ไม่สำเร็จ');
+  const created = await createRes.json();
+  return { gistId: created.id, isNew: true };
+}
+
+// Setup flow
+function showSyncModal(){
+  document.getElementById('sync-modal').classList.add('show');
+  setTimeout(()=>document.getElementById('sync-pat-input')?.focus(), 100);
+}
+function closeSyncModal(){
+  document.getElementById('sync-modal').classList.remove('show');
+  const inp = document.getElementById('sync-pat-input');
+  if(inp) inp.value = '';
+}
+async function onConnectClick(){
+  const inp = document.getElementById('sync-pat-input');
+  const pat = inp?.value.trim();
+  if(!pat) { showToast('ใส่ token ก่อนนะ'); return; }
+  if(!pat.startsWith('ghp_') && !pat.startsWith('github_pat_')) {
+    if(!confirm('Token รูปแบบไม่เหมือน PAT ของ GitHub · ลองต่อไป?')) return;
+  }
+  showToast('กำลังเชื่อมต่อ...');
+  try {
+    const { gistId, isNew } = await findOrCreateGist(pat);
+    S.sync = { enabled:true, gistId, pat, lastSync:Date.now() };
+    saveS(); // triggers sync
+    closeSyncModal();
+    if(!isNew) {
+      // Existing gist found — pull from cloud
+      const remote = await syncFromCloud();
+      if(remote) {
+        const localUpd = S.profile.updatedAt || 0;
+        const remoteUpd = remote.profile?.updatedAt || 0;
+        if(remoteUpd > localUpd && Object.keys(remote.entries||{}).length > 0) {
+          if(confirm('พบข้อมูลในคลาวด์ที่ใหม่กว่า · โหลดมาทับเครื่องนี้?')) {
+            S = { ...remote, sync: S.sync };
+            localStorage.setItem(STORE_KEY, JSON.stringify(S));
+            showToast('โหลดข้อมูลจากคลาวด์แล้ว ✓');
+            setTimeout(()=>switchTab('home'), 600);
+            return;
+          }
+        }
+      }
+    }
+    showToast('เชื่อม GitHub Gist แล้ว ☁️ ✓');
+    renderView('settings');
+  } catch(err) {
+    showToast('เชื่อมไม่สำเร็จ: ' + err.message);
+  }
+}
+async function manualSyncToCloud(){
+  if(!syncReady()) return;
+  await syncToCloud();
+  showToast('บันทึกขึ้นคลาวด์แล้ว ☁️↑');
+}
+async function manualSyncFromCloud(){
+  if(!syncReady()) return;
+  if(!confirm('โหลดจากคลาวด์ทับข้อมูลในเครื่องนี้?')) return;
+  const remote = await syncFromCloud();
+  if(remote) {
+    S = { ...remote, sync: S.sync };
+    localStorage.setItem(STORE_KEY, JSON.stringify(S));
+    showToast('โหลดข้อมูลจากคลาวด์แล้ว ☁️↓');
+    setTimeout(()=>location.reload(), 600);
+  }
+}
+function disconnectSync(){
+  if(!confirm('ยกเลิก sync? ข้อมูลในคลาวด์ยังอยู่ แต่แอปจะหยุด sync')) return;
+  S.sync = { enabled:false, gistId:'', pat:'', lastSync:0 };
+  saveS();
+  setSyncStatus('idle');
+  showToast('ยกเลิก sync แล้ว');
+  renderView('settings');
+}
+async function autoSyncOnLoad(){
+  if(!syncReady()) return;
+  const remote = await syncFromCloud();
+  if(!remote) return;
+  const localUpd = S.profile?.updatedAt || 0;
+  const remoteUpd = remote.profile?.updatedAt || 0;
+  // Remote significantly newer (>5s) → adopt
+  if(remoteUpd > localUpd + 5000) {
+    S = { ...remote, sync: S.sync };
+    localStorage.setItem(STORE_KEY, JSON.stringify(S));
+    if(currentTab) renderView(currentTab);
+  } else if(localUpd > remoteUpd + 5000) {
+    // Local newer → push
+    syncToCloud();
+  }
+}
+function fmtSyncTime(ts){
+  if(!ts) return '-';
+  const diff = Date.now() - ts;
+  if(diff < 60000) return 'เมื่อกี้นี้';
+  if(diff < 3600000) return Math.floor(diff/60000)+' นาทีที่แล้ว';
+  if(diff < 86400000) return Math.floor(diff/3600000)+' ชม.ที่แล้ว';
+  const d = new Date(ts);
+  return d.toLocaleString('th-TH', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+}
 
 function todayStr() {
   const d = new Date();
@@ -3539,6 +3839,31 @@ function buildSettings(){
   <button class="save-btn" onclick="saveSettings()">💾 บันทึกการตั้งค่า</button>
 </div>
 
+<div class="card">
+  <div class="sec">☁️ Cloud Sync (GitHub Gist)</div>
+  ${syncReady() ? `
+    <div class="sync-status-card on">
+      <div class="sync-status-ic">☁️</div>
+      <div class="sync-status-info">
+        <div class="sync-status-h">เชื่อมต่อแล้ว ✓</div>
+        <div class="sync-status-s">บันทึกล่าสุด: <b>${fmtSyncTime(S.sync.lastSync)}</b><br>Gist ID: <code style="background:var(--subtle);padding:1px 5px;border-radius:4px;font-size:10px">${S.sync.gistId.slice(0,10)}...</code></div>
+      </div>
+    </div>
+    <p class="small mb-2" style="margin-bottom:8px">บันทึกอัตโนมัติทุกครั้งที่เปลี่ยนแปลงข้อมูล · sync ข้าม device</p>
+    <div class="sync-btn-row">
+      <button class="sync-btn primary" onclick="manualSyncToCloud()">↑ ส่งขึ้น</button>
+      <button class="sync-btn" onclick="manualSyncFromCloud()">↓ ดึงลง</button>
+      <button class="sync-btn danger" onclick="disconnectSync()">ยกเลิก</button>
+    </div>
+  ` : `
+    <p class="small" style="margin-bottom:10px;line-height:1.6">เชื่อม GitHub ครั้งเดียว แล้ว:<br>
+    ✓ <b>Auto backup</b> ทุกครั้งที่บันทึก<br>
+    ✓ <b>Sync ข้าม device</b> (มือถือ ↔ PC)<br>
+    ✓ <b>Free</b> ไม่มีค่าใช้จ่าย</p>
+    <button class="sync-btn primary" onclick="showSyncModal()" style="width:100%">☁️ เชื่อม GitHub Gist (5 นาที)</button>
+  `}
+</div>
+
 <div class="card" style="border:1.5px solid var(--purple-l)">
   <div class="sec" style="color:var(--purple-dkr)">🎬 ลองดูตัวอย่าง</div>
   <p class="small" style="margin-bottom:12px">โหลดข้อมูลตัวอย่าง 60 วัน — รวมประวัติประจำเดือน 2 รอบ, ผลแล็ป 13 รายการ (มี trend), นัดหมอ 4 ครั้ง, medical notes 7 รายการ · เพื่อดูฟีเจอร์ทั้งระบบ</p>
@@ -3642,7 +3967,10 @@ function saveSettings(){
   saveS();showToast('บันทึกแล้ว ✅');
 }
 function exportData(){
-  const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+  // Strip sensitive PAT from export
+  const exportS = JSON.parse(JSON.stringify(S));
+  if(exportS.sync) exportS.sync = { ...exportS.sync, pat:'' };
+  const blob=new Blob([JSON.stringify(exportS,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='bloom_data_'+todayStr()+'.json';a.click();
 }
@@ -3857,6 +4185,8 @@ if(S.profile.setupComplete || S.profile.name){
   document.getElementById('setup').style.display='none';
   document.getElementById('app').classList.add('show');
   switchTab('home');
+  // If sync enabled, check cloud for newer data (non-blocking)
+  if(syncReady()) setTimeout(autoSyncOnLoad, 800);
 }
 
 // Service Worker registration (offline + PWA)
