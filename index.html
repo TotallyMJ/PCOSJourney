@@ -3874,10 +3874,14 @@ function buildSettings(){
 </div>
 
 <div class="card" style="border:1.5px solid var(--red-l)">
-  <div class="sec" style="color:var(--red-dk)">⚠️ ข้อมูล</div>
-  <p class="small" style="margin-bottom:12px">ข้อมูลทั้งหมดเก็บใน browser นี้เท่านั้น</p>
-  <button onclick="exportData()" style="width:100%;padding:11px;background:var(--subtle);border-radius:10px;font-size:13px;color:var(--text-s);margin-bottom:8px">📤 Export ข้อมูล (JSON)</button>
-  <button onclick="confirmClear()" style="width:100%;padding:11px;background:var(--red-l);border-radius:10px;font-size:13px;color:var(--red-dk)">🗑️ ล้างข้อมูลทั้งหมด</button>
+  <div class="sec" style="color:var(--red-dk)">⚠️ จัดการข้อมูล</div>
+  <p class="small" style="margin-bottom:12px">Backup เป็นไฟล์ JSON ไว้ในเครื่อง / Google Drive / Email</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+    <button onclick="exportData()" style="padding:11px;background:var(--subtle);border-radius:10px;font-size:13px;color:var(--text-s);font-weight:500">📤 Export</button>
+    <button onclick="importData()" style="padding:11px;background:var(--purple-l);border-radius:10px;font-size:13px;color:var(--purple-dkr);font-weight:500">📥 Import</button>
+  </div>
+  <p class="small" style="margin:0 2px 12px;color:var(--text-m);font-size:10.5px">Export → ดาวน์โหลดไฟล์ · Import → โหลดไฟล์เก่าทับข้อมูลปัจจุบัน</p>
+  <button onclick="confirmClear()" style="width:100%;padding:11px;background:var(--red-l);border-radius:10px;font-size:13px;color:var(--red-dk);font-weight:500">🗑️ ล้างข้อมูลทั้งหมด</button>
 </div>
 
 </div>`;
@@ -3976,6 +3980,41 @@ function exportData(){
   const blob=new Blob([JSON.stringify(exportS,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='bloom_data_'+todayStr()+'.json';a.click();
+}
+
+function importData(){
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'application/json,.json';
+  inp.onchange = (ev) => {
+    const file = ev.target.files?.[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        // Basic validation: must look like our state
+        if(typeof parsed !== 'object' || !parsed.profile) {
+          showToast('ไฟล์ไม่ถูกต้อง · ต้องเป็น JSON ที่ export จากแอปนี้');
+          return;
+        }
+        const entryCount = Object.keys(parsed.entries||{}).length;
+        const hasMedical = parsed.medical?.appointments?.length || parsed.medical?.labs?.length || parsed.medical?.notes?.length;
+        const summary = `พบข้อมูล:\n· บันทึก ${entryCount} วัน\n· medical: ${hasMedical?'มี':'ไม่มี'}\n· profile: ${parsed.profile.intention?'มี':'ไม่มี'}`;
+        if(!confirm('Import ข้อมูลจากไฟล์นี้?\n\n'+summary+'\n\n⚠️ ข้อมูลปัจจุบันจะถูกแทนที่ทั้งหมด · กู้คืนไม่ได้')) return;
+        // Preserve sync token (don't import sync from another device)
+        const currentSync = S.sync;
+        S = { ...parsed, sync: currentSync };
+        localStorage.setItem(STORE_KEY, JSON.stringify(S));
+        showToast('Import สำเร็จ ✨ · กำลัง reload...');
+        setTimeout(()=>location.reload(), 800);
+      } catch(err) {
+        showToast('อ่านไฟล์ไม่ได้: '+err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
 }
 function confirmClear(){
   const hasSync = S.sync && S.sync.pat && S.sync.gistId;
