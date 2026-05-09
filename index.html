@@ -3851,11 +3851,13 @@ function buildSettings(){
     </div>
     <p class="small mb-2" style="margin-bottom:8px">บันทึกอัตโนมัติทุกครั้งที่เปลี่ยนแปลงข้อมูล · sync ข้าม device</p>
     <div class="sync-btn-row">
-      <button class="sync-btn primary" onclick="manualSyncToCloud()">↑ ส่งขึ้น</button>
-      <button class="sync-btn" onclick="manualSyncFromCloud()">↓ ดึงลง</button>
-      <button class="sync-btn" onclick="disconnectSync()">ตัด sync</button>
+      <button class="sync-btn primary" onclick="manualSyncToCloud()">☁️↑ ส่งขึ้นคลาวด์</button>
+      <button class="sync-btn" onclick="manualSyncFromCloud()">☁️↓ ดึงจากคลาวด์</button>
     </div>
-    <button class="sync-btn danger" onclick="disconnectAndDeleteCloud()" style="width:100%;margin-top:6px">⚠️ ตัด sync + ลบ Gist ในคลาวด์</button>
+    <button class="sync-btn" onclick="disconnectSync()" style="width:100%;margin-top:6px">หยุดใช้คลาวด์ในเครื่องนี้</button>
+    <p class="small" style="margin:4px 2px 0;color:var(--text-m);font-size:10.5px">↑ token หาย · ข้อมูลในคลาวด์ยังอยู่ · เปิดใหม่ได้ทุกเมื่อ</p>
+    <button class="sync-btn danger" onclick="disconnectAndDeleteCloud()" style="width:100%;margin-top:10px">🗑️ ลบข้อมูลในคลาวด์ทั้งหมด</button>
+    <p class="small" style="margin:4px 2px 0;color:var(--red-dk);font-size:10.5px">↑ ลบ Gist บน GitHub ถาวร · กู้คืนไม่ได้</p>
   ` : `
     <p class="small" style="margin-bottom:10px;line-height:1.6">เชื่อม GitHub ครั้งเดียว แล้ว:<br>
     ✓ <b>Auto backup</b> ทุกครั้งที่บันทึก<br>
