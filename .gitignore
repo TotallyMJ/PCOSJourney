@@ -1,0 +1,21 @@
+# Node / Next.js (if using bloom-app/)
+node_modules/
+.next/
+out/
+dev.db
+dev.db-journal
+.env
+.env.local
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Build artifacts
+*.log
+*.tmp
+
+# Personal user data exports
+bloom_data_*.json
