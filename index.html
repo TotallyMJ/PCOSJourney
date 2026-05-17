@@ -2125,7 +2125,6 @@ const MODULE_RENDERERS = {
     const filled = Object.values(e.meals||{}).filter(Boolean);
     const summary = filled.length ? `<b>${filled.length}/4 มื้อ</b> · ${filled[0].slice(0,30)}${filled[0].length>30||filled.length>1?'...':''}` : null;
     const mealHist = collectMealHistory(); // unified array
-    const hiddenCount = (getHiddenSuggestions('meal')||[]).length;
 
     const renderMealRow = (lb, k) => {
       const items = parseFoodList(e.meals?.[k] || '');
@@ -2149,10 +2148,9 @@ const MODULE_RENDERERS = {
       <datalist id="dl-meals">${mealHist.map(v=>`<option value="${v}">`).join('')}</datalist>
       <p class="small" style="margin-top:4px">💡 กด <b>Enter</b> หรือ <b>,</b> เพื่อเพิ่มเมนู · กด <b>×</b> ที่ chip เพื่อลบ · ชื่อยาวมีเว้นวรรคได้ เช่น "Greek Yogurt"</p>
       ${mealHist.length > 0 ? `
-        <button type="button" class="hist-btn" onclick="toggleHistPanel('meals')">↓ ดูเมนูที่เคยกิน (${mealHist.length}${hiddenCount?` · ซ่อน ${hiddenCount}`:''})</button>
-        <div class="hist-panel" id="hist-panel-meals">
-          ${mealHist.map(v => `<span class="hist-chip"><span>${v}</span><button onclick="hideSuggestion('meal','${v.replace(/'/g,"\\'")}')" title="ลบจาก autocomplete">×</button></span>`).join('')}
-          ${hiddenCount ? `<button class="hist-restore" onclick="restoreHiddenSuggestions('meal')">↺ คืนค่า ${hiddenCount} เมนูที่ซ่อนไว้</button>` : ''}
+        <button type="button" class="hist-btn" onclick="toggleHistPanel('meals')">↓ ดูเมนูที่เคยกิน (${mealHist.length})</button>
+        <div class="hist-panel${_openHistPanels.has('meals')?' show':''}" id="hist-panel-meals">
+          ${mealHist.map(v => `<span class="hist-chip"><span>${v}</span><button onclick="hideSuggestion('meal','${v.replace(/'/g,"\\'")}')" title="ลบ">×</button></span>`).join('')}
         </div>` : ''}`;
     return accCard('🥗 อาหารที่กินวันนี้', 'แต่ละ chip = 1 เมนู · พิมพ์ + Enter (หรือ ,) เพื่อเพิ่ม · ชื่อยาวมีเว้นวรรคได้ เช่น "Greek Yogurt" · เมนูที่เคยกินทั้งหมดจะขึ้น autocomplete ให้เลือก ไม่แยกตามมื้อ', summary, body);
   },
@@ -3577,9 +3575,14 @@ function uniqueVals(arr, field, hiddenKey){
 function getHiddenSuggestions(key){
   return (S.profile.hiddenSuggestions?.[key]) || [];
 }
+// Track open history panels across re-renders (so panel stays open after deleting)
+let _openHistPanels = new Set();
 function toggleHistPanel(key){
   const p = document.getElementById('hist-panel-'+key);
-  if(p) p.classList.toggle('show');
+  if(!p) return;
+  p.classList.toggle('show');
+  if(p.classList.contains('show')) _openHistPanels.add(key);
+  else _openHistPanels.delete(key);
 }
 function hideSuggestion(key, value){
   if(!S.profile.hiddenSuggestions) S.profile.hiddenSuggestions = {};
@@ -3588,15 +3591,17 @@ function hideSuggestion(key, value){
     S.profile.hiddenSuggestions[key].push(value);
     saveS();
   }
+  // Keep this panel open across re-render
+  _openHistPanels.add(key);
   renderView(currentTab);
-  showToast('ลบ "'+value+'" จากประวัติแล้ว · พิมพ์ใหม่ก็จะกลับมา');
+  showToast('ลบ "'+value+'" แล้ว');
 }
 function restoreHiddenSuggestions(key){
+  // Kept for backward compat; no longer used in UI
   if(S.profile.hiddenSuggestions && S.profile.hiddenSuggestions[key]) {
     delete S.profile.hiddenSuggestions[key];
     saveS();
     renderView(currentTab);
-    showToast('คืนค่าทุกตัวเลือกที่ซ่อนแล้ว');
   }
 }
 // Legacy fallback (in case some UI still calls it)
@@ -3671,18 +3676,11 @@ function collectMealHistory(){
 }
 // Build the history-manage block (count button + panel of deletable chips)
 function histBlock(key, values){
-  const count = values.length;
-  const hidden = getHiddenSuggestions(key);
-  const hiddenCount = hidden.length;
-  if(count === 0 && hiddenCount === 0) return '';
-  const chips = values.length
-    ? values.map(v => `<span class="hist-chip"><span>${v}</span><button onclick="hideSuggestion('${key}','${v.replace(/'/g,"\\'")}')" title="ลบจาก autocomplete">×</button></span>`).join('')
-    : '<span class="hist-empty">ไม่มีตัวเลือกแสดง</span>';
-  return `<button type="button" class="hist-btn" onclick="toggleHistPanel('${key}')">↓ ดูประวัติ autocomplete (${count}${hiddenCount?` · ซ่อน ${hiddenCount}`:''})</button>
-    <div class="hist-panel" id="hist-panel-${key}">
-      ${chips}
-      ${hiddenCount ? `<button class="hist-restore" onclick="restoreHiddenSuggestions('${key}')">↺ คืนค่า ${hiddenCount} ตัวเลือกที่ซ่อนไว้</button>` : ''}
-    </div>`;
+  if(values.length === 0) return '';
+  const isOpen = _openHistPanels.has(key);
+  const chips = values.map(v => `<span class="hist-chip"><span>${v}</span><button onclick="hideSuggestion('${key}','${v.replace(/'/g,"\\'")}')" title="ลบ">×</button></span>`).join('');
+  return `<button type="button" class="hist-btn" onclick="toggleHistPanel('${key}')">↓ ดูประวัติ autocomplete (${values.length})</button>
+    <div class="hist-panel${isOpen?' show':''}" id="hist-panel-${key}">${chips}</div>`;
 }
 function buildAppointmentsCard(){
   const list = (S.medical?.appointments||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
