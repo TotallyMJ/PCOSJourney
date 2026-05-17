@@ -2434,23 +2434,38 @@ function buildWeekly(){
   const periodDays = periodDaysInRange(saved7);
 
   // Header row of dates
-  // Trend line builder (SVG)
-  const trendLine = (label, values, min, max, color, formatVal) => {
-    const w = 280, h = 50, pad = 8;
-    const range = max - min || 1;
-    const stepX = (w - pad*2) / Math.max(1, values.length - 1);
-    const pts = values.map((v, i) => ({
-      x: pad + i * stepX,
-      y: v === null ? null : pad + (h - pad*2) - ((v - min)/range) * (h - pad*2),
-      v
-    }));
-    const validPts = pts.filter(p => p.y !== null);
-    if(validPts.length === 0) {
+  // Trend line builder (SVG) — uses dynamic range based on data + clamps to viewBox
+  const trendLine = (label, values, hintMin, hintMax, color, formatVal) => {
+    const w = 280, h = 50, pad = 10;
+    const validVals = values.filter(v => v !== null && v !== undefined && !isNaN(v));
+    if(validVals.length === 0) {
       return `<div class="trend-row">
         <div class="trend-row-head"><span class="trend-row-label">${label}</span><span class="trend-row-avg">ยังไม่มีข้อมูล</span></div>
         <div style="height:54px;background:var(--subtle);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text-m);font-size:11px">ยังไม่บันทึก</div>
       </div>`;
     }
+    // Dynamic range: use data extremes but at least cover the hint range
+    const dataMin = Math.min(...validVals);
+    const dataMax = Math.max(...validVals);
+    let min = Math.min(hintMin, dataMin);
+    let max = Math.max(hintMax, dataMax);
+    // If all same value, add small padding so line isn't flat at edge
+    if(min === max) { min -= 1; max += 1; }
+    // Add 10% padding above/below so dots aren't touching edges
+    const padPct = (max - min) * 0.12;
+    min -= padPct;
+    max += padPct;
+    const range = max - min || 1;
+
+    const stepX = (w - pad*2) / Math.max(1, values.length - 1);
+    // Compute + clamp y to chart area
+    const clamp = (y) => Math.max(pad, Math.min(h - pad, y));
+    const pts = values.map((v, i) => ({
+      x: pad + i * stepX,
+      y: (v === null || v === undefined || isNaN(v)) ? null : clamp(pad + (h - pad*2) - ((v - min)/range) * (h - pad*2)),
+      v
+    }));
+
     // Build path with gaps (skip null points)
     let pathD = '';
     let inPath = false;
@@ -2459,9 +2474,8 @@ function buildWeekly(){
       pathD += (inPath ? ' L ' : ' M ') + p.x.toFixed(1) + ' ' + p.y.toFixed(1);
       inPath = true;
     });
-    // Dots for each value
     const dots = pts.map(p => p.y === null ? '' : `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${color}" stroke="white" stroke-width="1.5"/>`).join('');
-    const avg = validPts.reduce((a,p)=>a+p.v,0) / validPts.length;
+    const avg = validVals.reduce((a,v)=>a+v,0) / validVals.length;
     return `<div class="trend-row">
       <div class="trend-row-head">
         <span class="trend-row-label">${label}</span>
