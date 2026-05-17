@@ -957,7 +957,7 @@ function loadS() {
       S = {...S, ...parsed, profile:{...S.profile, ...parsed.profile}};
       // Migrate old meds (string[]) → object[]
       if(Array.isArray(S.profile.meds) && S.profile.meds.length && typeof S.profile.meds[0]==='string') {
-        S.profile.meds = S.profile.meds.map(name=>({id:nid(), name, time:'morning', meal:'any'}));
+        S.profile.meds = S.profile.meds.map(name=>({id:nid(), name, times:['morning'], meal:'any'}));
         saveS();
       }
       // Ensure modules
@@ -2200,7 +2200,12 @@ const MODULE_RENDERERS = {
         <div class="med-cb ${t?'on':''}">${t?'✓':''}</div>
         <div class="med-info">
           <div class="med-name">${m.name}</div>
-          <div class="med-meta"><span>${TIME_TH[m.time]||'ใดก็ได้'}</span><span>${MEAL_TH[m.meal]||'ตามสะดวก'}</span></div>
+          <div class="med-meta">${(() => {
+            const times = Array.isArray(m.times) ? m.times : (m.time ? [m.time] : []);
+            if(!times.length) return `<span>เวลาไหนก็ได้</span>`;
+            if(times.includes('any')) return `<span>⏱ เวลาไหนก็ได้</span>`;
+            return times.map(t => `<span>${TIME_TH[t]||t}</span>`).join('');
+          })()}<span>${MEAL_TH[m.meal]||'ตามสะดวก'}</span></div>
         </div>
       </div>`;
     });
@@ -4032,7 +4037,13 @@ function openDoctorPrep(apptId){
     ${meds.length?`<div class="dp-section">
       <div class="dp-section-h">ยา/Supplement — ความสม่ำเสมอ 30 วัน</div>
       <div class="dp-list">
-        ${meds.map((m,i)=>{const a=medAd[i];return `<div class="dp-row"><b>${m.name}</b><span>${a.pct}% · ${({morning:'เช้า',noon:'กลางวัน',evening:'เย็น',night:'ก่อนนอน',any:'—'})[m.time]||''}${m.meal?` · ${({before:'ก่อนอาหาร',after:'หลังอาหาร',with:'พร้อมอาหาร',any:''})[m.meal]||''}`:''}</span></div>`;}).join('')}
+        ${meds.map((m,i)=>{
+          const a=medAd[i];
+          const tArr = Array.isArray(m.times) ? m.times : (m.time ? [m.time] : []);
+          const tDisplay = tArr.length === 0 ? '' : tArr.includes('any') ? 'เวลาไหนก็ได้' : tArr.map(t=>({morning:'เช้า',noon:'กลางวัน',evening:'เย็น',night:'ก่อนนอน'})[t]||t).join(' + ');
+          const mealDisplay = m.meal && m.meal !== 'any' ? ` · ${({before:'ก่อนอาหาร',after:'หลังอาหาร',with:'พร้อมอาหาร'})[m.meal]||''}` : '';
+          return `<div class="dp-row"><b>${m.name}</b><span>${a.pct}% · ${tDisplay}${mealDisplay}</span></div>`;
+        }).join('')}
       </div>
     </div>`:''}
 
@@ -4249,18 +4260,46 @@ function buildSettings(){
 }
 
 function renderMedEditor(m,i){
+  // Normalize: support legacy m.time string + new m.times array
+  const times = Array.isArray(m.times) ? m.times : (m.time ? [m.time] : []);
+  const isAny = times.includes('any');
   return `<div class="med-editor-row" data-idx="${i}">
     <div class="med-edit-top">
       <input class="med-edit-name" data-field="name" value="${m.name}" onchange="cfgUpdateMed(${i},'name',this.value)">
       <button class="med-edit-x" onclick="cfgRemoveMed(${i})">×</button>
     </div>
-    <div class="med-edit-pills" data-field="time">
-      ${['morning','noon','evening','night'].map(t=>`<button class="med-edit-pill ${m.time===t?'on':''}" onclick="cfgSetMedField(${i},'time','${t}',this)">${TIME_TH[t]}</button>`).join('')}
+    <div style="font-size:10px;color:var(--text-m);margin-bottom:3px">เวลากิน (เลือกได้หลายช่วง)</div>
+    <div class="med-edit-pills" data-field="times">
+      ${['morning','noon','evening','night'].map(t=>`<button class="med-edit-pill ${times.includes(t)&&!isAny?'on':''}" ${isAny?'style="opacity:.35"':''} onclick="cfgToggleMedTime(${i},'${t}',this)">${TIME_TH[t]}</button>`).join('')}
+      <button class="med-edit-pill ${isAny?'on':''}" onclick="cfgSetMedAny(${i},this)" style="background:${isAny?'var(--green-l)':'var(--subtle)'};${isAny?'border-color:var(--green);color:var(--green-dk)':''}">⏱ เวลาไหนก็ได้</button>
     </div>
+    <div style="font-size:10px;color:var(--text-m);margin:7px 0 3px">ตอนกิน</div>
     <div class="med-edit-pills" data-field="meal">
       ${['before','after','with','any'].map(t=>`<button class="med-edit-pill ${(m.meal||'any')===t?'on':''}" onclick="cfgSetMedField(${i},'meal','${t}',this)">${MEAL_TH[t]}</button>`).join('')}
     </div>
   </div>`;
+}
+
+// Multi-select toggle for med times
+function cfgToggleMedTime(i, t, el){
+  const m = S.profile.meds[i]; if(!m) return;
+  let times = Array.isArray(m.times) ? [...m.times] : (m.time ? [m.time] : []);
+  // If "any" is currently selected, toggling a specific time clears "any"
+  times = times.filter(x => x !== 'any');
+  if(times.includes(t)) times = times.filter(x => x !== t);
+  else times.push(t);
+  m.times = times;
+  delete m.time; // legacy cleanup
+  saveS();
+  renderView('settings');
+}
+function cfgSetMedAny(i, el){
+  const m = S.profile.meds[i]; if(!m) return;
+  const isAny = (Array.isArray(m.times) ? m.times : (m.time ? [m.time] : [])).includes('any');
+  m.times = isAny ? [] : ['any'];
+  delete m.time;
+  saveS();
+  renderView('settings');
 }
 
 function cfgPickGoal(el){document.querySelectorAll('#cfg-goal-row .goal-b').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');}
@@ -4276,7 +4315,7 @@ function cfgRemoveMed(i){S.profile.meds.splice(i,1);saveS();renderView('settings
 function cfgAddMed(){
   const inp=document.getElementById('cfg-new-med');const v=inp?.value.trim();if(!v) return;
   if(!S.profile.meds) S.profile.meds=[];
-  S.profile.meds.push({id:nid(),name:v,time:'morning',meal:'any'});saveS();
+  S.profile.meds.push({id:nid(),name:v,times:['morning'],meal:'any'});saveS();
   inp.value='';renderView('settings');showToast('เพิ่ม '+v+' 💊');
 }
 function toggleModule(el,id){
@@ -4436,10 +4475,10 @@ function loadSampleData(){
       goal:'fat-loss', activity:'light',
       cycleLen:30, weightGoal:55, weightStart:60,
       meds:[
-        {id:nid(),name:'Yazmin',time:'morning',meal:'after'},
-        {id:nid(),name:'Inositol',time:'morning',meal:'before'},
-        {id:nid(),name:'Vit D',time:'morning',meal:'with'},
-        {id:nid(),name:'Spearmint',time:'evening',meal:'any'}
+        {id:nid(),name:'Yazmin',times:['night'],meal:'after'},
+        {id:nid(),name:'Inositol',times:['morning','evening'],meal:'before'},
+        {id:nid(),name:'Vit D',times:['morning'],meal:'with'},
+        {id:nid(),name:'Spearmint',times:['any'],meal:'any'}
       ],
       moduleOrder: ALL_MODULES.map(m=>m.id),
       modulesEnabled: Object.fromEntries(ALL_MODULES.map(m=>[m.id,m.default])),
