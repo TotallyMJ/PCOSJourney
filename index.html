@@ -1004,6 +1004,19 @@ function loadS() {
       if(!S.sync) S.sync = { enabled:false, gistId:'', pat:'', lastSync:0 };
       // Ensure hiddenSuggestions block
       if(!S.profile.hiddenSuggestions) S.profile.hiddenSuggestions = {};
+      // Migrate old per-meal-type hidden suggestions to unified 'meal' key
+      const hs = S.profile.hiddenSuggestions;
+      const mealTypeKeys = ['meal_morning','meal_lunch','meal_dinner','meal_snack'];
+      if(mealTypeKeys.some(k => hs[k])) {
+        if(!hs.meal) hs.meal = [];
+        mealTypeKeys.forEach(k => {
+          if(hs[k]) {
+            hs[k].forEach(v => { if(!hs.meal.includes(v)) hs.meal.push(v); });
+            delete hs[k];
+          }
+        });
+        saveS();
+      }
       // Backfill weightStart from earliest weight entry (so progress works for existing users)
       if(!S.profile.weightStart && S.entries) {
         const earliestWeighted = Object.entries(S.entries).filter(([,e])=>e.weight).sort((a,b)=>a[0].localeCompare(b[0]))[0];
@@ -2092,10 +2105,8 @@ const MODULE_RENDERERS = {
     const protTarget = calcProteinTarget();
     const filled = Object.values(e.meals||{}).filter(Boolean);
     const summary = filled.length ? `<b>${filled.length}/4 มื้อ</b> · ${filled[0].slice(0,30)}${filled[0].length>30||filled.length>1?'...':''}` : null;
-    const mealHist = collectMealHistory();
-    const totalHist = mealHist.morning.length + mealHist.lunch.length + mealHist.dinner.length + mealHist.snack.length;
-    const mealLabels = { morning:'เช้า', lunch:'กลางวัน', dinner:'เย็น', snack:'ของว่าง' };
-    const hasHidden = ['morning','lunch','dinner','snack'].some(k => (getHiddenSuggestions('meal_'+k)||[]).length);
+    const mealHist = collectMealHistory(); // unified array
+    const hiddenCount = (getHiddenSuggestions('meal')||[]).length;
 
     const renderMealRow = (lb, k) => {
       const items = parseFoodList(e.meals?.[k] || '');
@@ -2107,32 +2118,24 @@ const MODULE_RENDERERS = {
           `).join('')}
           <input id="meal-input-${k}" class="meal-chip-input"
             placeholder="${items.length ? '+ เพิ่ม' : 'พิมพ์เมนู กด Enter หรือ ,'}"
-            list="dl-meal-${k}" autocomplete="off"
+            list="dl-meals" autocomplete="off"
             onkeydown="addMealChip('${k}',event)"
             onblur="if(this.value.trim())addMealChip('${k}')">
-          <datalist id="dl-meal-${k}">${mealHist[k].map(v=>`<option value="${v}">`).join('')}</datalist>
         </div>
       </div>`;
     };
 
     const body = `<div class="tip green" style="margin-top:0;margin-bottom:11px"><span class="tip-ic">🥗</span><span><b>protein ก่อนแป้งทุกมื้อ</b> ลด blood sugar spike${protTarget?` · เป้า protein วันนี้ <b>~${protTarget}g</b> (~${Math.round(protTarget/4)}-${Math.round(protTarget/3)}g/มื้อ)`:''}</span></div>
       ${[['เช้า','morning'],['กลางวัน','lunch'],['เย็น','dinner'],['ของว่าง','snack']].map(([lb,k])=>renderMealRow(lb,k)).join('')}
+      <datalist id="dl-meals">${mealHist.map(v=>`<option value="${v}">`).join('')}</datalist>
       <p class="small" style="margin-top:4px">💡 กด <b>Enter</b> หรือ <b>,</b> เพื่อเพิ่มเมนู · กด <b>×</b> ที่ chip เพื่อลบ · ชื่อยาวมีเว้นวรรคได้ เช่น "Greek Yogurt"</p>
-      ${totalHist > 0 ? `
-        <button type="button" class="hist-btn" onclick="toggleHistPanel('meals')">↓ ดูเมนูที่เคยกิน (${totalHist})</button>
-        <div class="hist-panel" id="hist-panel-meals" style="flex-direction:column;align-items:stretch">
-          ${['morning','lunch','dinner','snack'].map(k => {
-            if(!mealHist[k].length) return '';
-            return `<div style="margin-bottom:8px;width:100%">
-              <div style="font-size:10px;color:var(--text-s);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${mealLabels[k]} (${mealHist[k].length})</div>
-              <div style="display:flex;flex-wrap:wrap;gap:5px">
-                ${mealHist[k].map(v => `<span class="hist-chip"><span>${v}</span><button onclick="hideSuggestion('meal_${k}','${v.replace(/'/g,"\\'")}')" title="ลบจาก autocomplete">×</button></span>`).join('')}
-              </div>
-            </div>`;
-          }).join('')}
-          ${hasHidden ? `<button class="hist-restore" onclick="restoreAllMealSuggestions()">↺ คืนค่าเมนูที่ซ่อนทั้งหมด</button>` : ''}
+      ${mealHist.length > 0 ? `
+        <button type="button" class="hist-btn" onclick="toggleHistPanel('meals')">↓ ดูเมนูที่เคยกิน (${mealHist.length}${hiddenCount?` · ซ่อน ${hiddenCount}`:''})</button>
+        <div class="hist-panel" id="hist-panel-meals">
+          ${mealHist.map(v => `<span class="hist-chip"><span>${v}</span><button onclick="hideSuggestion('meal','${v.replace(/'/g,"\\'")}')" title="ลบจาก autocomplete">×</button></span>`).join('')}
+          ${hiddenCount ? `<button class="hist-restore" onclick="restoreHiddenSuggestions('meal')">↺ คืนค่า ${hiddenCount} เมนูที่ซ่อนไว้</button>` : ''}
         </div>` : ''}`;
-    return accCard('🥗 อาหารที่กินวันนี้', 'แต่ละ chip = 1 เมนู · พิมพ์ + Enter (หรือ ,) เพื่อเพิ่ม · ชื่อยาวมีเว้นวรรคได้ เช่น "Greek Yogurt" · เมนูที่เคยกินจะขึ้น autocomplete ให้เลือก', summary, body);
+    return accCard('🥗 อาหารที่กินวันนี้', 'แต่ละ chip = 1 เมนู · พิมพ์ + Enter (หรือ ,) เพื่อเพิ่ม · ชื่อยาวมีเว้นวรรคได้ เช่น "Greek Yogurt" · เมนูที่เคยกินทั้งหมดจะขึ้น autocomplete ให้เลือก ไม่แยกตามมื้อ', summary, body);
   },
   water: (e) => {
     const w = e.water||0;
@@ -3575,15 +3578,8 @@ function restoreHiddenSuggestions(key){
     showToast('คืนค่าทุกตัวเลือกที่ซ่อนแล้ว');
   }
 }
-function restoreAllMealSuggestions(){
-  ['morning','lunch','dinner','snack'].forEach(k => {
-    if(S.profile.hiddenSuggestions && S.profile.hiddenSuggestions['meal_'+k]) {
-      delete S.profile.hiddenSuggestions['meal_'+k];
-    }
-  });
-  saveS();renderView('today');
-  showToast('คืนค่าเมนูที่ซ่อนทั้งหมด');
-}
+// Legacy fallback (in case some UI still calls it)
+function restoreAllMealSuggestions(){ restoreHiddenSuggestions('meal'); }
 // Parse meal text into items: comma is primary separator (allows multi-word names like "Greek Yogurt")
 // Falls back to space split for legacy entries that don't use commas
 function parseFoodList(text){
@@ -3633,27 +3629,24 @@ function removeMealChip(k, idx){
 }
 
 function collectMealHistory(){
-  // Each food = 1 item · uses parseFoodList: comma-first for multi-word names, space fallback
-  const result = { morning:[], lunch:[], dinner:[], snack:[] };
-  const seen = { morning:new Set(), lunch:new Set(), dinner:new Set(), snack:new Set() };
+  // Unified across all meal types — no duplicates
+  // Most recent entry first → newest unique foods appear first in datalist
+  const seen = new Set();
+  const list = [];
   Object.entries(S.entries).sort((a,b)=>b[0].localeCompare(a[0])).forEach(([,e]) => {
     if(!e.meals) return;
     ['morning','lunch','dinner','snack'].forEach(k => {
-      const items = parseFoodList(e.meals[k] || '');
-      items.forEach(item => {
-        if(!seen[k].has(item)) {
-          seen[k].add(item);
-          result[k].push(item);
+      parseFoodList(e.meals[k] || '').forEach(item => {
+        if(!seen.has(item)) {
+          seen.add(item);
+          list.push(item);
         }
       });
     });
   });
-  // Filter out hidden
-  Object.keys(result).forEach(k => {
-    const hidden = new Set(getHiddenSuggestions('meal_'+k));
-    result[k] = result[k].filter(v => !hidden.has(v));
-  });
-  return result;
+  // Filter out hidden (unified key 'meal')
+  const hidden = new Set(getHiddenSuggestions('meal'));
+  return list.filter(v => !hidden.has(v));
 }
 // Build the history-manage block (count button + panel of deletable chips)
 function histBlock(key, values){
