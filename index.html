@@ -3536,7 +3536,6 @@ function buildAppointmentsCard(){
   // Datalists from history (autocomplete) — filters hidden suggestions
   const doctors = uniqueVals(list, 'doctor');
   const clinics = uniqueVals(list, 'clinic');
-  const reasons = uniqueVals(list, 'reason');
 
   const body = `
     <div class="med-form" id="med-form-appt">
@@ -3557,10 +3556,8 @@ function buildAppointmentsCard(){
       <datalist id="dl-clinics">${clinics.map(v=>`<option value="${v}">`).join('')}</datalist>
       <div class="med-form-field">
         <label class="med-form-label">เรื่องที่จะคุย</label>
-        <input id="appt-reason" placeholder="เช่น ติดตาม PCOS" list="dl-reasons" autocomplete="off">
-        ${histBlock('reason', reasons)}
+        <input id="appt-reason" placeholder="เช่น ติดตาม PCOS" autocomplete="off">
       </div>
-      <datalist id="dl-reasons">${reasons.map(v=>`<option value="${v}">`).join('')}</datalist>
       <div class="med-form-field"><label class="med-form-label">บันทึกหลังพบหมอ (เติมทีหลังได้)</label><textarea id="appt-outcome" rows="2" placeholder="หมอแนะนำ... ปรับยา... ผลแล็ป..."></textarea></div>
       <div class="med-form-actions">
         <button class="med-form-cancel" onclick="cancelEditAppt()">ยกเลิก</button>
