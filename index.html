@@ -2070,11 +2070,31 @@ const MODULE_RENDERERS = {
     const protTarget = calcProteinTarget();
     const filled = Object.values(e.meals||{}).filter(Boolean);
     const summary = filled.length ? `<b>${filled.length}/4 มื้อ</b> · ${filled[0].slice(0,30)}${filled[0].length>30||filled.length>1?'...':''}` : null;
+    const mealHist = collectMealHistory();
+    const totalHist = mealHist.morning.length + mealHist.lunch.length + mealHist.dinner.length + mealHist.snack.length;
+    const mealLabels = { morning:'เช้า', lunch:'กลางวัน', dinner:'เย็น', snack:'ของว่าง' };
+    const hasHidden = ['morning','lunch','dinner','snack'].some(k => (getHiddenSuggestions('meal_'+k)||[]).length);
     const body = `<div class="tip green" style="margin-top:0;margin-bottom:11px"><span class="tip-ic">🥗</span><span><b>protein ก่อนแป้งทุกมื้อ</b> ลด blood sugar spike${protTarget?` · เป้า protein วันนี้ <b>~${protTarget}g</b> (~${Math.round(protTarget/4)}-${Math.round(protTarget/3)}g/มื้อ)`:''}</span></div>
       ${[['เช้า','morning'],['กลางวัน','lunch'],['เย็น','dinner'],['ของว่าง','snack']].map(([lb,k])=>`
         <div class="food-r"><span class="food-l">${lb}</span>
-          <input class="lf" data-meal="${k}" placeholder="กินอะไร..." value="${e.meals?.[k]||''}"></div>`).join('')}`;
-    return accCard('🥗 อาหารที่กินวันนี้', 'เป้าหมาย protein ต่อวันคำนวณให้อัตโนมัติจากน้ำหนัก+เป้าหมายในหน้า <a onclick="switchTab(&apos;settings&apos;)">ตั้งค่า</a> · กิน protein ก่อนแป้งทุกมื้อจะช่วยลด sugar spike ที่ทำให้พลังงานตก', summary, body);
+          <input class="lf" data-meal="${k}" placeholder="กินอะไร..." value="${e.meals?.[k]||''}" list="dl-meal-${k}" autocomplete="off">
+          <datalist id="dl-meal-${k}">${mealHist[k].map(v=>`<option value="${v}">`).join('')}</datalist>
+        </div>`).join('')}
+      ${totalHist > 0 ? `
+        <button type="button" class="hist-btn" onclick="toggleHistPanel('meals')">↓ ดูเมนูที่เคยกิน (${totalHist})</button>
+        <div class="hist-panel" id="hist-panel-meals" style="flex-direction:column;align-items:stretch">
+          ${['morning','lunch','dinner','snack'].map(k => {
+            if(!mealHist[k].length) return '';
+            return `<div style="margin-bottom:8px;width:100%">
+              <div style="font-size:10px;color:var(--text-s);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${mealLabels[k]} (${mealHist[k].length})</div>
+              <div style="display:flex;flex-wrap:wrap;gap:5px">
+                ${mealHist[k].map(v => `<span class="hist-chip"><span>${v}</span><button onclick="hideSuggestion('meal_${k}','${v.replace(/'/g,"\\'")}')" title="ลบจาก autocomplete">×</button></span>`).join('')}
+              </div>
+            </div>`;
+          }).join('')}
+          ${hasHidden ? `<button class="hist-restore" onclick="restoreAllMealSuggestions()">↺ คืนค่าเมนูที่ซ่อนทั้งหมด</button>` : ''}
+        </div>` : ''}`;
+    return accCard('🥗 อาหารที่กินวันนี้', 'เป้าหมาย protein ต่อวันคำนวณให้อัตโนมัติจากน้ำหนัก+เป้าหมายในหน้า <a onclick="switchTab(&apos;settings&apos;)">ตั้งค่า</a> · กิน protein ก่อนแป้งทุกมื้อจะช่วยลด sugar spike · เมนูที่เคยกินจะขึ้นเป็น autocomplete ให้เลือก ไม่ต้องพิมพ์ซ้ำ', summary, body);
   },
   water: (e) => {
     const w = e.water||0;
@@ -3487,16 +3507,46 @@ function hideSuggestion(key, value){
     S.profile.hiddenSuggestions[key].push(value);
     saveS();
   }
-  renderView('cycle');
+  renderView(currentTab);
   showToast('ลบ "'+value+'" จากประวัติแล้ว · พิมพ์ใหม่ก็จะกลับมา');
 }
 function restoreHiddenSuggestions(key){
   if(S.profile.hiddenSuggestions && S.profile.hiddenSuggestions[key]) {
     delete S.profile.hiddenSuggestions[key];
     saveS();
-    renderView('cycle');
+    renderView(currentTab);
     showToast('คืนค่าทุกตัวเลือกที่ซ่อนแล้ว');
   }
+}
+function restoreAllMealSuggestions(){
+  ['morning','lunch','dinner','snack'].forEach(k => {
+    if(S.profile.hiddenSuggestions && S.profile.hiddenSuggestions['meal_'+k]) {
+      delete S.profile.hiddenSuggestions['meal_'+k];
+    }
+  });
+  saveS();renderView('today');
+  showToast('คืนค่าเมนูที่ซ่อนทั้งหมด');
+}
+function collectMealHistory(){
+  const result = { morning:[], lunch:[], dinner:[], snack:[] };
+  const seen = { morning:new Set(), lunch:new Set(), dinner:new Set(), snack:new Set() };
+  // Most recent first so newest entries appear first in datalist
+  Object.entries(S.entries).sort((a,b)=>b[0].localeCompare(a[0])).forEach(([,e]) => {
+    if(!e.meals) return;
+    ['morning','lunch','dinner','snack'].forEach(k => {
+      const v = e.meals[k]?.trim();
+      if(v && !seen[k].has(v)) {
+        seen[k].add(v);
+        result[k].push(v);
+      }
+    });
+  });
+  // Filter out hidden
+  Object.keys(result).forEach(k => {
+    const hidden = new Set(getHiddenSuggestions('meal_'+k));
+    result[k] = result[k].filter(v => !hidden.has(v));
+  });
+  return result;
 }
 // Build the history-manage block (count button + panel of deletable chips)
 function histBlock(key, values){
