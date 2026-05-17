@@ -1980,15 +1980,26 @@ ${modulesHTML}
 
 // ═══════════════════════════════════════
 // MODULE RENDERERS
+// Track open accordions across re-renders (Set of stable IDs)
+let _openAccs = new Set();
+function hashAccId(label){
+  let h = 0;
+  for(let i = 0; i < label.length; i++) {
+    h = ((h << 5) - h) + label.charCodeAt(i);
+    h |= 0;
+  }
+  return 'acc_' + Math.abs(h);
+}
 // ═══════════════════════════════════════
 // Accordion card builder — replaces the old `<div class="card">${secHelp(...)} body</div>` pattern
 function accCard(label, helpText, summary, body){
-  const accId = 'acc'+(++_helpId);
+  const accId = hashAccId(label);
   const helpId = 'h'+(++_helpId);
+  const isOpen = _openAccs.has(accId);
   const filled = summary !== null && summary !== undefined && summary !== '';
   const summaryText = filled ? summary : '<span style="color:var(--text-m);font-style:italic">ยังไม่กรอก</span>';
   const cls = filled ? 'on' : '';
-  return `<div class="card acc" id="${accId}">
+  return `<div class="card acc ${isOpen?'open':''}" id="${accId}">
     <div class="acc-header" onclick="toggleAcc('${accId}')">
       <div class="acc-info">
         <div class="acc-top"><span class="acc-dot ${cls}"></span><span class="acc-label">${label}</span></div>
@@ -2002,12 +2013,20 @@ function accCard(label, helpText, summary, body){
   </div>`;
 }
 function toggleAcc(id){
-  document.getElementById(id)?.classList.toggle('open');
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.toggle('open');
+  if(el.classList.contains('open')) _openAccs.add(id);
+  else _openAccs.delete(id);
 }
 function toggleAllAcc(){
   const cards = document.querySelectorAll('#view .card.acc');
   const allOpen = [...cards].every(c=>c.classList.contains('open'));
-  cards.forEach(c=>c.classList.toggle('open', !allOpen));
+  cards.forEach(c=>{
+    c.classList.toggle('open', !allOpen);
+    if(c.classList.contains('open')) _openAccs.add(c.id);
+    else _openAccs.delete(c.id);
+  });
   const btn = document.getElementById('acc-toggle-btn');
   if(btn) btn.textContent = allOpen ? '▾ ขยายทั้งหมด' : '▴ ย่อทั้งหมด';
 }
@@ -3522,9 +3541,10 @@ function toggleMedForm(name){
 // Accordion wrapper for medical cards (cycle page)
 function accMedCard(label, summary, body, formName){
   const accId = 'acc-'+formName;
+  const isOpen = _openAccs.has(accId);
   const filled = !!summary;
   const summaryText = filled ? summary : '<span style="color:var(--text-m);font-style:italic">ยังไม่มีข้อมูล · กดเพื่อเริ่ม</span>';
-  return `<div class="card acc" id="${accId}">
+  return `<div class="card acc ${isOpen?'open':''}" id="${accId}">
     <div class="acc-header" onclick="toggleAcc('${accId}')">
       <div class="acc-info">
         <div class="acc-top"><span class="acc-dot ${filled?'on':''}"></span><span class="acc-label">${label}</span></div>
@@ -3538,6 +3558,7 @@ function accMedCard(label, summary, body, formName){
 }
 function openMedForm(accId, formName){
   document.getElementById(accId)?.classList.add('open');
+  _openAccs.add(accId);
   const f = document.getElementById('med-form-'+formName);
   if(f) f.classList.add('show');
 }
