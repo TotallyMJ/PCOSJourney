@@ -536,6 +536,16 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .sync-modal-connect{background:linear-gradient(135deg,var(--purple),var(--purple-dk));color:white}
 .sync-warning{background:var(--orange-l);color:var(--orange-dk);padding:8px 11px;border-radius:9px;font-size:11px;line-height:1.5;margin-top:8px}
 
+/* === MEAL CHIP INPUT === */
+.meal-input-wrap{display:flex;flex-wrap:wrap;gap:4px;align-items:center;width:100%;background:transparent;border-bottom:1.5px solid var(--border-l);padding:5px 2px;min-height:34px;transition:border-color .15s;cursor:text}
+.meal-input-wrap:focus-within{border-bottom-color:var(--purple)}
+.meal-chip-item{display:inline-flex;align-items:center;gap:1px;background:var(--purple-l);color:var(--purple-dkr);padding:3px 3px 3px 9px;border-radius:12px;font-size:12px;line-height:1.25;max-width:100%}
+.meal-chip-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}
+.meal-chip-item button{background:transparent;border:none;color:var(--purple-dk);font-size:14px;cursor:pointer;padding:1px 5px;border-radius:50%;line-height:1}
+.meal-chip-item button:active{background:white}
+.meal-chip-input{flex:1;min-width:80px;background:transparent;border:none;outline:none;font-size:13px;font-family:inherit;padding:3px 0;color:var(--text)}
+.meal-chip-input::placeholder{color:var(--text-m)}
+
 /* === AUTOCOMPLETE HISTORY MANAGEMENT === */
 .hist-btn{display:inline-block;font-size:10.5px;color:var(--text-m);background:transparent;border:none;margin-top:5px;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;padding:0}
 .hist-btn:active{color:var(--text-s)}
@@ -2074,12 +2084,28 @@ const MODULE_RENDERERS = {
     const totalHist = mealHist.morning.length + mealHist.lunch.length + mealHist.dinner.length + mealHist.snack.length;
     const mealLabels = { morning:'เช้า', lunch:'กลางวัน', dinner:'เย็น', snack:'ของว่าง' };
     const hasHidden = ['morning','lunch','dinner','snack'].some(k => (getHiddenSuggestions('meal_'+k)||[]).length);
-    const body = `<div class="tip green" style="margin-top:0;margin-bottom:11px"><span class="tip-ic">🥗</span><span><b>protein ก่อนแป้งทุกมื้อ</b> ลด blood sugar spike${protTarget?` · เป้า protein วันนี้ <b>~${protTarget}g</b> (~${Math.round(protTarget/4)}-${Math.round(protTarget/3)}g/มื้อ)`:''}</span></div>
-      ${[['เช้า','morning'],['กลางวัน','lunch'],['เย็น','dinner'],['ของว่าง','snack']].map(([lb,k])=>`
-        <div class="food-r"><span class="food-l">${lb}</span>
-          <input class="lf" data-meal="${k}" placeholder="กินอะไร..." value="${e.meals?.[k]||''}" list="dl-meal-${k}" autocomplete="off">
+
+    const renderMealRow = (lb, k) => {
+      const items = parseFoodList(e.meals?.[k] || '');
+      return `<div style="display:grid;grid-template-columns:44px 1fr;gap:8px;align-items:start;margin-bottom:9px">
+        <span class="food-l" style="padding-top:8px">${lb}</span>
+        <div class="meal-input-wrap" onclick="if(event.target.classList.contains('meal-input-wrap'))document.getElementById('meal-input-${k}')?.focus()">
+          ${items.map((item, idx) => `
+            <span class="meal-chip-item"><span>${item}</span><button onclick="event.stopPropagation();removeMealChip('${k}',${idx})" title="ลบเมนูนี้">×</button></span>
+          `).join('')}
+          <input id="meal-input-${k}" class="meal-chip-input"
+            placeholder="${items.length ? '+ เพิ่ม' : 'พิมพ์เมนู กด Enter หรือ ,'}"
+            list="dl-meal-${k}" autocomplete="off"
+            onkeydown="addMealChip('${k}',event)"
+            onblur="if(this.value.trim())addMealChip('${k}')">
           <datalist id="dl-meal-${k}">${mealHist[k].map(v=>`<option value="${v}">`).join('')}</datalist>
-        </div>`).join('')}
+        </div>
+      </div>`;
+    };
+
+    const body = `<div class="tip green" style="margin-top:0;margin-bottom:11px"><span class="tip-ic">🥗</span><span><b>protein ก่อนแป้งทุกมื้อ</b> ลด blood sugar spike${protTarget?` · เป้า protein วันนี้ <b>~${protTarget}g</b> (~${Math.round(protTarget/4)}-${Math.round(protTarget/3)}g/มื้อ)`:''}</span></div>
+      ${[['เช้า','morning'],['กลางวัน','lunch'],['เย็น','dinner'],['ของว่าง','snack']].map(([lb,k])=>renderMealRow(lb,k)).join('')}
+      <p class="small" style="margin-top:4px">💡 กด <b>Enter</b> หรือ <b>,</b> เพื่อเพิ่มเมนู · กด <b>×</b> ที่ chip เพื่อลบ · ชื่อยาวมีเว้นวรรคได้ เช่น "Greek Yogurt"</p>
       ${totalHist > 0 ? `
         <button type="button" class="hist-btn" onclick="toggleHistPanel('meals')">↓ ดูเมนูที่เคยกิน (${totalHist})</button>
         <div class="hist-panel" id="hist-panel-meals" style="flex-direction:column;align-items:stretch">
@@ -2094,7 +2120,7 @@ const MODULE_RENDERERS = {
           }).join('')}
           ${hasHidden ? `<button class="hist-restore" onclick="restoreAllMealSuggestions()">↺ คืนค่าเมนูที่ซ่อนทั้งหมด</button>` : ''}
         </div>` : ''}`;
-    return accCard('🥗 อาหารที่กินวันนี้', 'เป้าหมาย protein ต่อวันคำนวณให้อัตโนมัติจากน้ำหนัก+เป้าหมายในหน้า <a onclick="switchTab(&apos;settings&apos;)">ตั้งค่า</a> · กิน protein ก่อนแป้งทุกมื้อจะช่วยลด sugar spike · เมนูที่เคยกินจะขึ้นเป็น autocomplete ให้เลือก ไม่ต้องพิมพ์ซ้ำ', summary, body);
+    return accCard('🥗 อาหารที่กินวันนี้', 'แต่ละ chip = 1 เมนู · พิมพ์ + Enter (หรือ ,) เพื่อเพิ่ม · ชื่อยาวมีเว้นวรรคได้ เช่น "Greek Yogurt" · เมนูที่เคยกินจะขึ้น autocomplete ให้เลือก', summary, body);
   },
   water: (e) => {
     const w = e.water||0;
@@ -2419,7 +2445,8 @@ function collectToday(){
   const exMinRaw = document.getElementById('ex-min')?.value;
   const exMin = exMinRaw ? parseInt(exMinRaw) : (e.exercise?.minutes ?? null);
   const exInt=document.querySelector('#ex-int-row .q3b.sel')?.dataset.v||e.exercise?.intensity||'low';
-  const meals={};document.querySelectorAll('input[data-meal]').forEach(el=>{meals[el.dataset.meal]=el.value;});
+  // Meals are managed via chip handlers (addMealChip/removeMealChip) — preserve existing
+  const meals = e.meals || {};
   const water=document.querySelectorAll('.wg.filled').length||e.water||0;
   // symptoms with severity — preserved by cycleSymptom directly; collect for safety
   const symptoms=[];document.querySelectorAll('#sym-row .eb.sel').forEach(el=>symptoms.push(el.dataset.v));
@@ -3532,17 +3559,62 @@ function restoreAllMealSuggestions(){
   saveS();renderView('today');
   showToast('คืนค่าเมนูที่ซ่อนทั้งหมด');
 }
+// Parse meal text into items: comma is primary separator (allows multi-word names like "Greek Yogurt")
+// Falls back to space split for legacy entries that don't use commas
+function parseFoodList(text){
+  if(!text) return [];
+  if(text.includes(',') || text.includes('+')){
+    return text.split(/[,+]/).map(s=>s.trim()).filter(s=>s.length>0);
+  }
+  // No commas → legacy format, split by whitespace
+  return text.split(/\s+/).filter(s=>s.length>0);
+}
+function joinFoodList(items){
+  return items.filter(s=>s && s.trim()).map(s=>s.trim()).join(', ');
+}
+// Add a food item as chip
+function addMealChip(k, evt){
+  if(evt){
+    if(evt.key && evt.key !== 'Enter' && evt.key !== ',') return;
+    if(evt.preventDefault) evt.preventDefault();
+  }
+  const inp = document.getElementById('meal-input-'+k);
+  if(!inp) return;
+  // Strip trailing comma + trim
+  let v = inp.value.replace(/,+$/,'').trim();
+  if(!v) return;
+  const dt = activeDate();
+  const e = getEntry(dt);
+  if(!e.meals) e.meals = {};
+  const items = parseFoodList(e.meals[k] || '');
+  if(!items.includes(v)){
+    items.push(v);
+    e.meals[k] = joinFoodList(items);
+    setEntry(dt, e);
+  }
+  inp.value = '';
+  renderView('today');
+  setTimeout(()=>document.getElementById('meal-input-'+k)?.focus(), 50);
+}
+function removeMealChip(k, idx){
+  const dt = activeDate();
+  const e = getEntry(dt);
+  if(!e.meals || !e.meals[k]) return;
+  const items = parseFoodList(e.meals[k]);
+  items.splice(idx, 1);
+  e.meals[k] = joinFoodList(items);
+  setEntry(dt, e);
+  renderView('today');
+}
+
 function collectMealHistory(){
-  // Each food = 1 item. Split by whitespace / comma / + so user can manage individual items.
+  // Each food = 1 item · uses parseFoodList: comma-first for multi-word names, space fallback
   const result = { morning:[], lunch:[], dinner:[], snack:[] };
   const seen = { morning:new Set(), lunch:new Set(), dinner:new Set(), snack:new Set() };
   Object.entries(S.entries).sort((a,b)=>b[0].localeCompare(a[0])).forEach(([,e]) => {
     if(!e.meals) return;
     ['morning','lunch','dinner','snack'].forEach(k => {
-      const raw = e.meals[k]?.trim();
-      if(!raw) return;
-      // Split by whitespace, comma, plus → each token = 1 food item
-      const items = raw.split(/[\s,+]+/).map(s => s.trim()).filter(s => s.length > 0);
+      const items = parseFoodList(e.meals[k] || '');
       items.forEach(item => {
         if(!seen[k].has(item)) {
           seen[k].add(item);
@@ -4627,7 +4699,7 @@ function bindEvents(tab){
     ['journal','pain-note'].forEach(id=>{
       const el=document.getElementById(id);if(el) el.addEventListener('input',()=>autoSaveToday());
     });
-    document.querySelectorAll('input[data-meal]').forEach(el=>el.addEventListener('input',()=>autoSaveToday()));
+    // Meal inputs handled by chip handlers (addMealChip/removeMealChip) — no autosave hook needed
     document.getElementById('ex-min')?.addEventListener('input',()=>autoSaveToday());
     document.getElementById('weight-input')?.addEventListener('input',()=>autoSaveToday());
     // Initialize sleep
