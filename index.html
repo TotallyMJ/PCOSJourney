@@ -368,7 +368,18 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 /* read-only weekly meds */
 .hcb.readonly{cursor:default;pointer-events:none}
 
-/* === HEATMAP === */
+/* === TREND LINE (weekly) === */
+.trend-chart{display:flex;flex-direction:column;gap:14px;margin-top:6px}
+.trend-row{display:flex;flex-direction:column;gap:4px}
+.trend-row-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.trend-row-label{font-size:12px;color:var(--text);font-weight:600;display:flex;align-items:center;gap:5px}
+.trend-row-avg{font-size:11px;color:var(--text-s)}
+.trend-row-avg b{color:var(--text)}
+.trend-svg{width:100%;height:54px;display:block}
+.trend-days{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:2px}
+.trend-day-label{font-size:9px;color:var(--text-m);text-align:center;font-weight:500}
+
+/* === HEATMAP (legacy, still used elsewhere) === */
 .hm-wrap{margin-bottom:6px}
 .hm-row{display:grid;grid-template-columns:62px repeat(7,1fr);gap:3px;margin-bottom:3px;align-items:center}
 .hm-row.head{margin-bottom:6px}
@@ -950,6 +961,11 @@ function loadS() {
       if(!S.medical.notes) S.medical.notes = [];
       // Ensure sync block
       if(!S.sync) S.sync = { enabled:false, gistId:'', pat:'', lastSync:0 };
+      // Backfill weightStart from earliest weight entry (so progress works for existing users)
+      if(!S.profile.weightStart && S.entries) {
+        const earliestWeighted = Object.entries(S.entries).filter(([,e])=>e.weight).sort((a,b)=>a[0].localeCompare(b[0]))[0];
+        if(earliestWeighted) S.profile.weightStart = earliestWeighted[1].weight;
+      }
     }
   } catch(e){console.error(e);}
 }
@@ -1482,8 +1498,10 @@ function completeSetup(){
   };
   const w = parseFloat(document.getElementById('s-weight').value);
   if(w) {
-    const dt = todayStr();
-    setEntry(dt, {weight: Math.round(w*10)/10});
+    const wRound = Math.round(w*10)/10;
+    setEntry(todayStr(), {weight: wRound});
+    // Set baseline weight at onboarding (never auto-replaced after this)
+    if(!S.profile.weightStart) S.profile.weightStart = wRound;
   }
   saveS();
   document.getElementById('setup').style.display='none';
@@ -1569,15 +1587,47 @@ function buildHome(){
 
   // awareness items
   const aware = [];
+  const nm = S.profile.name ? `คุณ${S.profile.name}` : 'คุณ';
+  const todayE = getEntry(todayStr());
+  const todaySaved = todayE.saved;
+
+  // === Smart time-of-day reminders (personalized) ===
+  if(h >= 21 && !todaySaved){
+    aware.push({color:'var(--pink)',text:`📝 ${nm}ยังไม่ได้บันทึกวันนี้ · ก่อนนอนสรุปวันสักนิดมั้ย? ใช้เวลา 2 นาที`});
+  } else if(h >= 12 && h < 21 && !todayE.water){
+    aware.push({color:'var(--purple-m)',text:`💧 ยังไม่ได้บันทึกน้ำดื่ม · ${nm}ดื่มน้ำพอหรือยัง?`});
+  }
+  if(h >= 22 || h < 3){
+    aware.push({color:'var(--orange)',text:`🌙 ดึกแล้ว · นอนก่อน 23:00 ช่วยลด cortisol + insulin resistance นะ`});
+  }
+
+  // === Pattern-based reminders ===
   const lowSleep7 = days7.filter(e=>e.sleepHours&&e.sleepHours<6).length;
-  if(lowSleep7>=3) aware.push({color:'var(--orange)',text:`<b>นอน &lt; 6 ชม. ${lowSleep7} วัน</b>ใน 7 วันที่ผ่านมา ลองนอนเร็วขึ้น 30 นาที`});
+  if(lowSleep7>=3) aware.push({color:'var(--orange)',text:`<b>นอน &lt; 6 ชม. ${lowSleep7} วัน</b>ใน 7 วันที่ผ่านมา · ${nm}ลองนอนเร็วขึ้น 30 นาทีดูนะ`});
   const exDays7 = days7.filter(e=>e.exercise?.type&&e.exercise.type!=='ไม่ได้ออกกำลัง').length;
-  if(exDays7===0&&days7.length>=3) aware.push({color:'var(--purple-m)',text:'ยังไม่ได้ออกกำลังกายในสัปดาห์นี้ — เดิน 10 นาทีก็ดีนะ'});
+  if(exDays7===0&&days7.length>=3) aware.push({color:'var(--purple-m)',text:`${nm}ยังไม่ได้ออกกำลังกายในสัปดาห์นี้ — เดิน 10 นาทีก็ช่วยได้นะ`});
+  if(exDays7>=1 && exDays7<=2 && days7.length>=5) aware.push({color:'var(--sage)',text:`เดือนนี้ออกกำลังกาย ${exDays7} วัน · ${nm}ลองเพิ่มอีก 1-2 วัน ช่วย insulin sensitivity`});
   const lowEng = days7.filter(e=>e.energy&&e.energy<=2).length;
-  if(lowEng>=3) aware.push({color:'var(--pink-h)',text:`พลังงานต่ำ ${lowEng} วันใน 7 วัน — ลองสังเกตว่ากินอะไร นอนกี่ชม.`});
+  if(lowEng>=3) aware.push({color:'var(--pink-h)',text:`พลังงานต่ำ ${lowEng} วันใน 7 วัน · ลองสังเกตว่ากินอะไร นอนกี่ชม. · ${nm}ดูแลตัวเองนะ`});
   const painDays = days7.filter(e=>e.painLevel>=3).length;
-  if(painDays>=3) aware.push({color:'var(--red-b)',text:`มีวันปวด ${painDays} วันใน 7 วัน — ถ้าซ้ำๆ ปรึกษาหมอได้นะ`});
-  if(next!==null && next<=3 && next>=0) aware.push({color:'var(--pink)',text:`ประจำเดือนคาดว่าจะมาในอีก ${next} วัน — เตรียมตัวได้`});
+  if(painDays>=3) aware.push({color:'var(--red-b)',text:`${nm}ปวด ${painDays} วันใน 7 วัน · ถ้าซ้ำๆ ปรึกษาหมอได้นะ`});
+
+  // === Cycle awareness ===
+  if(next!==null && next<=3 && next>=0) aware.push({color:'var(--pink)',text:`🩸 ประจำเดือนคาดว่าจะมาในอีก ${next} วัน · เตรียมตัวได้`});
+  if(next!==null && next<0 && next>=-5) aware.push({color:'var(--orange)',text:`🩸 เลยกำหนดมา ${-next} วัน · ปกติมั้ย? ถ้าผิดเดิมไปไกล ปรึกษาหมอ`});
+
+  // === Phase-specific PCOS tip ===
+  if(phase.key === 'luteal' || phase.key === 'pms'){
+    const cravingCount = days7.filter(e => (e.cravings||[]).length > 0).length;
+    if(cravingCount >= 3) aware.push({color:'var(--purple-m)',text:`🍫 ช่วง ${phase.name} มี craving บ่อย · ลองโปรตีน + ผักก่อนของหวาน จะรู้สึกอิ่มกว่า`});
+  }
+
+  // === Streak encouragement vs absence ===
+  const lastSavedDate = Object.entries(S.entries).filter(([,e])=>e.saved).map(([k])=>k).sort().reverse()[0];
+  if(lastSavedDate){
+    const daysSince = Math.floor((parseDate(todayStr())-parseDate(lastSavedDate))/86400000);
+    if(daysSince >= 3) aware.push({color:'var(--pink)',text:`💝 ไม่ได้บันทึก ${daysSince} วันแล้ว · ${nm}เป็นยังไงบ้าง? กลับมาก็ยินดีต้อนรับเสมอ 🌸`});
+  }
 
   // insights from last 30 days
   const insights = generateInsights(days30);
@@ -1594,7 +1644,7 @@ function buildHome(){
 
 <div class="greet-card">
   <div class="greet-time">${greet}</div>
-  <div class="greet-h">ยินดีต้อนรับกลับ 🌸</div>
+  <div class="greet-h">${S.profile.name ? `${greet === 'ราตรีสวัสดิ์' ? 'ราตรีสวัสดิ์' : 'สวัสดี'} คุณ${S.profile.name} 🌸` : 'ยินดีต้อนรับกลับ 🌸'}</div>
   <div class="greet-sub">${S.profile.intention || 'ค่อยๆ ก้าวไปด้วยกันนะ ไม่ต้องรีบ'}</div>
 </div>
 
@@ -1662,8 +1712,7 @@ ${buildDoctorPrepBanner()}
         <div class="metric-s">บันทึก mood ในหน้าวันนี้</div>
       `}
     </div>
-    <div class="metric"><div class="metric-l">💪 จำนวน protein ที่แนะนำ</div><div class="metric-v">${prot||'—'}<span style="font-size:13px;color:var(--text-m)"> g/วัน</span></div><div class="metric-s">${prot?`~${Math.round(prot/4)}-${Math.round(prot/3)} g ต่อมื้อ`:'ใส่ข้อมูลในตั้งค่า'}</div></div>
-    <div class="metric" style="grid-column:1/-1"><div class="metric-l">🌙 ชั่วโมงการนอนเฉลี่ย</div><div class="metric-v">${sleepAvg!==null?sleepAvg:'—'}<span style="font-size:13px;color:var(--text-m)"> ชม./คืน</span></div><div class="metric-s">เฉลี่ย 7 วันที่ผ่านมา · ${sleepAvg!==null?(sleepAvg>=7?'ดีมาก 🌟':sleepAvg>=6?'ใกล้เป้า 7-9 ชม.':'ลองนอนเร็วขึ้น 30 นาที'):''}</div></div>
+    <div class="metric"><div class="metric-l">🌙 ชั่วโมงการนอนเฉลี่ย</div><div class="metric-v">${sleepAvg!==null?sleepAvg:'—'}<span style="font-size:13px;color:var(--text-m)"> ชม./คืน</span></div><div class="metric-s">7 วัน · ${sleepAvg!==null?(sleepAvg>=7?'ดีมาก 🌟':sleepAvg>=6?'ใกล้เป้า 7-9 ชม.':'นอนเร็วขึ้น 30 นาที'):''}</div></div>
   </div>
 </div>
 
@@ -1989,9 +2038,10 @@ const MODULE_RENDERERS = {
       <div id="ex-detail" style="${e.exercise?.type&&e.exercise.type!=='ไม่ได้ออกกำลัง'?'':'display:none'};margin-top:10px">
         <div class="row">
           <span style="font-size:13px;color:var(--text-s)">นาที</span>
-          <input class="num-input" id="ex-min" type="number" value="${e.exercise?.minutes||30}" min="5" max="300">
+          <input class="num-input" id="ex-min" type="number" value="${e.exercise?.minutes||''}" min="0" max="600" placeholder="—">
           <div class="q3-row flex1" id="ex-int-row">${[['เบา','low'],['ปานกลาง','mid'],['หนัก','high']].map(([lb,v])=>`<button class="q3b ${(e.exercise?.intensity||'low')===v?'sel':''}" data-v="${v}" onclick="pickQ3(this,'ex-int')">${lb}</button>`).join('')}</div>
         </div>
+        <p class="small mt8">💡 ไม่ใส่นาทีก็ได้ · เช่น เดินเยอะตอนเที่ยว/ทำงาน ไม่ต้องนับเวลา</p>
       </div>`;
     return accCard('🏃 การเคลื่อนไหว / ออกกำลังกาย', 'บันทึกการเคลื่อนไหวทุกประเภท · สำหรับ PCOS แนะนำ low-impact (เดิน/โยคะ/ว่ายน้ำ) ช่วย insulin sensitivity โดยไม่เพิ่ม cortisol', summary, body);
   },
@@ -2242,7 +2292,7 @@ function pickQ3(el){el.closest('.q3-row').querySelectorAll('.q3b').forEach(b=>b.
 function pickFlow(el){document.querySelectorAll('#flow-row .fb').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');autoSaveToday();}
 function pickPain(el){document.querySelectorAll('.pb').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');autoSaveToday();}
 function pickEx(el){
-  document.querySelectorAll('.ex-row .eb').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');
+  document.querySelectorAll('#ex-row .eb').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');
   const v=el.dataset.v;const detail=document.getElementById('ex-detail');
   if(detail) detail.style.display=(v&&v!=='ไม่ได้ออกกำลัง')?'':'none';
   autoSaveToday();
@@ -2319,8 +2369,9 @@ function collectToday(){
   const periodFlow=document.querySelector('#flow-row .fb.sel')?.dataset.v||e.periodFlow||'none';
   const painLevel=parseInt(document.querySelector('.pb.sel')?.dataset.v??e.painLevel??0);
   const painNote=document.getElementById('pain-note')?.value||e.painNote||'';
-  const exType=document.querySelector('.ex-row .eb.sel')?.dataset.v||e.exercise?.type||'ไม่ได้ออกกำลัง';
-  const exMin=parseInt(document.getElementById('ex-min')?.value||e.exercise?.minutes||30);
+  const exType=document.querySelector('#ex-row .eb.sel')?.dataset.v||e.exercise?.type||'ไม่ได้ออกกำลัง';
+  const exMinRaw = document.getElementById('ex-min')?.value;
+  const exMin = exMinRaw ? parseInt(exMinRaw) : (e.exercise?.minutes ?? null);
   const exInt=document.querySelector('#ex-int-row .q3b.sel')?.dataset.v||e.exercise?.intensity||'low';
   const meals={};document.querySelectorAll('input[data-meal]').forEach(el=>{meals[el.dataset.meal]=el.value;});
   const water=document.querySelectorAll('.wg.filled').length||e.water||0;
@@ -2383,17 +2434,57 @@ function buildWeekly(){
   const periodDays = periodDaysInRange(saved7);
 
   // Header row of dates
-  const headerRow = `<div class="hm-row head"><div class="hm-row-l"></div>${days7.map(e=>{const dy=parseDate(e.date).getDay();return `<div class="hm-day">${thShort[dy]}<br><span style="color:var(--text-m);font-size:9px">${parseDate(e.date).getDate()}</span></div>`;}).join('')}</div>`;
-
-  // Heatmap rows
-  const heatmapRow = (label, getCell) => {
-    return `<div class="hm-row"><div class="hm-row-l">${label}</div>${days7.map(getCell).join('')}</div>`;
+  // Trend line builder (SVG)
+  const trendLine = (label, values, min, max, color, formatVal) => {
+    const w = 280, h = 50, pad = 8;
+    const range = max - min || 1;
+    const stepX = (w - pad*2) / Math.max(1, values.length - 1);
+    const pts = values.map((v, i) => ({
+      x: pad + i * stepX,
+      y: v === null ? null : pad + (h - pad*2) - ((v - min)/range) * (h - pad*2),
+      v
+    }));
+    const validPts = pts.filter(p => p.y !== null);
+    if(validPts.length === 0) {
+      return `<div class="trend-row">
+        <div class="trend-row-head"><span class="trend-row-label">${label}</span><span class="trend-row-avg">ยังไม่มีข้อมูล</span></div>
+        <div style="height:54px;background:var(--subtle);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text-m);font-size:11px">ยังไม่บันทึก</div>
+      </div>`;
+    }
+    // Build path with gaps (skip null points)
+    let pathD = '';
+    let inPath = false;
+    pts.forEach(p => {
+      if(p.y === null) { inPath = false; return; }
+      pathD += (inPath ? ' L ' : ' M ') + p.x.toFixed(1) + ' ' + p.y.toFixed(1);
+      inPath = true;
+    });
+    // Dots for each value
+    const dots = pts.map(p => p.y === null ? '' : `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${color}" stroke="white" stroke-width="1.5"/>`).join('');
+    const avg = validPts.reduce((a,p)=>a+p.v,0) / validPts.length;
+    return `<div class="trend-row">
+      <div class="trend-row-head">
+        <span class="trend-row-label">${label}</span>
+        <span class="trend-row-avg">เฉลี่ย <b>${formatVal(avg)}</b></span>
+      </div>
+      <svg class="trend-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+        <path d="${pathD}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        ${dots}
+      </svg>
+    </div>`;
   };
-  const heatmapHTML = `<div class="hm-wrap">${headerRow}
-    ${heatmapRow('😊 mood', e=>{const s=moodToScore(e.mood);return `<div class="hm-cell ${energyClass(s)}" title="${e.mood||'—'}">${e.mood?moodIcons[e.mood]||'·':'—'}</div>`;})}
-    ${heatmapRow('⚡ พลังงาน', e=>`<div class="hm-cell ${energyClass(e.energy)}">${e.energy||'—'}</div>`)}
-    ${heatmapRow('🌙 นอน', e=>`<div class="hm-cell ${sleepClass(e.sleepHours)}">${e.sleepHours?e.sleepHours.toFixed(1):'—'}</div>`)}
-    ${heatmapRow('💊 ปวด', e=>`<div class="hm-cell ${painClass(e.painLevel)}">${(e.painLevel===null||e.painLevel===undefined)?'—':e.painLevel}</div>`)}
+
+  const moodScores = days7.map(e => moodToScore(e.mood));
+  const energies = days7.map(e => e.energy || null);
+  const sleeps = days7.map(e => e.sleepHours || null);
+  const pains = days7.map(e => (typeof e.painLevel === 'number' ? e.painLevel : null));
+
+  const trendChartHTML = `<div class="trend-chart">
+    ${trendLine('😊 mood', moodScores, 1, 5, '#D4537E', v => v.toFixed(1) + '/5')}
+    ${trendLine('⚡ พลังงาน', energies, 1, 5, '#7F77DD', v => v.toFixed(1) + '/5')}
+    ${trendLine('🌙 การนอน', sleeps, 4, 10, '#5DCAA5', v => v.toFixed(1) + ' ชม.')}
+    ${trendLine('💊 ปวด', pains, 0, 5, '#F0997B', v => v.toFixed(1) + '/5')}
+    <div class="trend-days">${days7.map(e=>{const dy=parseDate(e.date).getDay();return `<div class="trend-day-label">${thShort[dy]}<br>${parseDate(e.date).getDate()}</div>`;}).join('')}</div>
   </div>`;
 
   // Symptom frequency
@@ -2447,17 +2538,9 @@ ${insights.length ? `<div class="card" style="background:linear-gradient(135deg,
   ${insights.map(t=>`<div style="display:flex;gap:8px;padding:5px 0"><div style="width:6px;height:6px;border-radius:50%;background:var(--purple-m);margin-top:7px;flex-shrink:0"></div><p style="font-size:12.5px;line-height:1.55">${t}</p></div>`).join('')}
 </div>` : ''}
 
-<div class="card"><div class="sec">🌡️ heatmap 7 วัน</div>
-  ${heatmapHTML}
-  <div class="hm-legend">
-    <span style="font-weight:600;color:var(--text-s)">สี:</span>
-    <div class="hm-legend-item"><div class="hm-legend-sw" style="background:var(--green-l)"></div>ดี</div>
-    <div class="hm-legend-item"><div class="hm-legend-sw" style="background:#E0EED1"></div>ค่อนข้างดี</div>
-    <div class="hm-legend-item"><div class="hm-legend-sw" style="background:var(--subtle)"></div>กลาง</div>
-    <div class="hm-legend-item"><div class="hm-legend-sw" style="background:var(--orange-l)"></div>น่าสังเกต</div>
-    <div class="hm-legend-item"><div class="hm-legend-sw" style="background:#FBE5DC"></div>ต้องดูแล</div>
-    <div class="hm-legend-item"><div class="hm-legend-sw" style="background:transparent;border:1px dashed var(--border-l)"></div>ไม่บันทึก</div>
-  </div>
+<div class="card"><div class="sec">📈 แนวโน้ม 7 วันที่ผ่านมา</div>
+  ${trendChartHTML}
+  <p class="small mt8">เส้นขึ้น = ดีขึ้น (ยกเว้น "ปวด" เส้นลง = ดีขึ้น) · จุดที่หายไป = ยังไม่บันทึก</p>
 </div>
 
 <div class="card"><div class="sec">📊 ค่าเฉลี่ยสัปดาห์</div><div class="sg">
@@ -3342,11 +3425,17 @@ function openMedForm(accId, formName){
 }
 
 // Appointments
+let _editingApptId = null;
+function uniqueVals(arr, field){
+  const set = new Set();
+  arr.forEach(it => { const v = it[field]?.trim(); if(v) set.add(v); });
+  return [...set];
+}
 function buildAppointmentsCard(){
   const list = (S.medical?.appointments||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
   const today = todayStr();
   const upcoming = list.filter(a=>a.date>=today);
-  const past = list.filter(a=>a.date<today).reverse().slice(0,3);
+  const past = list.filter(a=>a.date<today).reverse(); // newest first
   const renderItem = (a, isFuture) => `<div class="med-item">
     ${dateBadge(a.date, isFuture)}
     <div class="med-content">
@@ -3354,33 +3443,43 @@ function buildAppointmentsCard(){
       ${a.reason?`<div class="med-meta">เรื่อง: <b>${a.reason}</b></div>`:''}
       ${a.outcome?`<div class="med-meta" style="background:var(--green-l);padding:6px 9px;border-radius:8px;margin-top:5px"><b>📋 หลังพบหมอ:</b> ${a.outcome}</div>`:''}
     </div>
-    <button class="med-del" onclick="deleteAppointment('${a.id}')">×</button>
+    <div style="display:flex;flex-direction:column;gap:2px;align-items:center">
+      <button class="med-del" onclick="editAppointment('${a.id}')" title="แก้ไข">✏️</button>
+      <button class="med-del" onclick="deleteAppointment('${a.id}')" title="ลบ">×</button>
+    </div>
   </div>`;
   const upHTML = upcoming.length ? upcoming.map(a=>renderItem(a,true)).join('') : '';
-  const pastHTML = past.length ? `<p class="small" style="margin-top:12px;font-weight:600">นัดที่ผ่านมา</p>${past.map(a=>renderItem(a,false)).join('')}` : '';
+  const pastHTML = past.length ? `<p class="small" style="margin-top:12px;font-weight:600">นัดที่ผ่านมา (${past.length})</p>${past.map(a=>renderItem(a,false)).join('')}` : '';
 
-  // Smart summary
   let summary = null;
   if(upcoming.length){
     const next = upcoming[0];
     const days = Math.ceil((parseDate(next.date)-parseDate(today))/86400000);
     const when = days===0?'วันนี้':days===1?'พรุ่งนี้':`อีก ${days} วัน`;
-    summary = `<b>ครั้งหน้า: ${when}</b>${next.doctor?` · ${next.doctor}`:''}${list.length>1?` · มี ${list.length} นัดทั้งหมด`:''}`;
+    summary = `<b>ครั้งหน้า: ${when}</b>${next.doctor?` · ${next.doctor}`:''}${list.length>1?` · ${list.length} นัดทั้งหมด`:''}`;
   } else if(list.length){
     summary = `<b>${list.length} นัด</b> (ผ่านมาแล้วทั้งหมด)`;
   }
+
+  // Datalists from history (autocomplete)
+  const doctors = uniqueVals(list, 'doctor');
+  const clinics = uniqueVals(list, 'clinic');
+  const reasons = uniqueVals(list, 'reason');
 
   const body = `
     <div class="med-form" id="med-form-appt">
       <div class="med-form-row">
         <div><label class="med-form-label">วันที่นัด</label><input type="date" id="appt-date" value="${todayStr()}"></div>
-        <div><label class="med-form-label">หมอ/แพทย์</label><input id="appt-doctor" placeholder="เช่น นพ.สมชาย"></div>
+        <div><label class="med-form-label">หมอ/แพทย์</label><input id="appt-doctor" placeholder="เช่น นพ.สมชาย" list="dl-doctors" autocomplete="off"></div>
       </div>
-      <div class="med-form-field"><label class="med-form-label">โรงพยาบาล/คลินิก</label><input id="appt-clinic" placeholder="ชื่อสถานที่"></div>
-      <div class="med-form-field"><label class="med-form-label">เรื่องที่จะคุย</label><input id="appt-reason" placeholder="เช่น ติดตาม PCOS, lab results..."></div>
+      <datalist id="dl-doctors">${doctors.map(v=>`<option value="${v}">`).join('')}</datalist>
+      <div class="med-form-field"><label class="med-form-label">โรงพยาบาล/คลินิก</label><input id="appt-clinic" placeholder="ชื่อสถานที่" list="dl-clinics" autocomplete="off"></div>
+      <datalist id="dl-clinics">${clinics.map(v=>`<option value="${v}">`).join('')}</datalist>
+      <div class="med-form-field"><label class="med-form-label">เรื่องที่จะคุย</label><input id="appt-reason" placeholder="เช่น ติดตาม PCOS" list="dl-reasons" autocomplete="off"></div>
+      <datalist id="dl-reasons">${reasons.map(v=>`<option value="${v}">`).join('')}</datalist>
       <div class="med-form-field"><label class="med-form-label">บันทึกหลังพบหมอ (เติมทีหลังได้)</label><textarea id="appt-outcome" rows="2" placeholder="หมอแนะนำ... ปรับยา... ผลแล็ป..."></textarea></div>
       <div class="med-form-actions">
-        <button class="med-form-cancel" onclick="toggleMedForm('appt')">ยกเลิก</button>
+        <button class="med-form-cancel" onclick="cancelEditAppt()">ยกเลิก</button>
         <button class="med-form-save" onclick="saveAppointment()">บันทึก</button>
       </div>
     </div>
@@ -3388,20 +3487,46 @@ function buildAppointmentsCard(){
 
   return accMedCard('🏥 นัดหมอ', summary, body, 'appt');
 }
+function editAppointment(id){
+  const a = S.medical.appointments.find(x=>x.id===id);
+  if(!a) return;
+  _editingApptId = id;
+  const form = document.getElementById('med-form-appt');
+  if(form && !form.classList.contains('show')) form.classList.add('show');
+  setTimeout(()=>{
+    document.getElementById('appt-date').value = a.date;
+    document.getElementById('appt-doctor').value = a.doctor||'';
+    document.getElementById('appt-clinic').value = a.clinic||'';
+    document.getElementById('appt-reason').value = a.reason||'';
+    document.getElementById('appt-outcome').value = a.outcome||'';
+    form.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }, 50);
+}
+function cancelEditAppt(){
+  _editingApptId = null;
+  toggleMedForm('appt');
+  ['appt-doctor','appt-clinic','appt-reason','appt-outcome'].forEach(id=>{const el=document.getElementById(id);if(el) el.value='';});
+}
 function saveAppointment(){
   const date = document.getElementById('appt-date')?.value;
   if(!date){showToast('ใส่วันที่ก่อนนะ');return;}
-  const ap = {
-    id: nid(),
+  const data = {
     date,
     doctor: document.getElementById('appt-doctor')?.value.trim()||'',
     clinic: document.getElementById('appt-clinic')?.value.trim()||'',
     reason: document.getElementById('appt-reason')?.value.trim()||'',
-    outcome: document.getElementById('appt-outcome')?.value.trim()||'',
-    createdAt: Date.now()
+    outcome: document.getElementById('appt-outcome')?.value.trim()||''
   };
-  S.medical.appointments.push(ap);saveS();
-  renderView('cycle');showToast('เพิ่มนัดแล้ว 🏥');
+  if(_editingApptId){
+    const idx = S.medical.appointments.findIndex(x=>x.id===_editingApptId);
+    if(idx>=0) S.medical.appointments[idx] = { ...S.medical.appointments[idx], ...data, updatedAt: Date.now() };
+    _editingApptId = null;
+    showToast('แก้ไขนัดแล้ว ✓');
+  } else {
+    S.medical.appointments.push({ id:nid(), ...data, createdAt:Date.now() });
+    showToast('เพิ่มนัดแล้ว 🏥');
+  }
+  saveS();renderView('cycle');
 }
 function deleteAppointment(id){
   if(!confirm('ลบนัดนี้?')) return;
@@ -3431,7 +3556,10 @@ function buildLabsCard(){
       ${l.notes?`<div class="med-meta" style="font-style:italic">${l.notes}</div>`:''}
       ${l.flag&&l.flag!=='unknown' ? `<div class="med-tags"><span class="med-tag ${l.flag}">${l.flag==='high'?'🔺 สูงกว่าเกณฑ์':l.flag==='low'?'🔻 ต่ำกว่าเกณฑ์':'✓ ปกติ'}</span></div>`:''}
     </div>
-    <button class="med-del" onclick="deleteLab('${l.id}')">×</button>
+    <div style="display:flex;flex-direction:column;gap:2px;align-items:center">
+      <button class="med-del" onclick="editLab('${l.id}')" title="แก้ไข">✏️</button>
+      <button class="med-del" onclick="deleteLab('${l.id}')" title="ลบ">×</button>
+    </div>
   </div>`;
   const trendHTML = trending.length ? `<div style="background:var(--purple-l);border-radius:11px;padding:10px 12px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;color:var(--purple-dkr);margin-bottom:6px">📈 มี trend (วัดซ้ำ)</div>
@@ -3448,20 +3576,28 @@ function buildLabsCard(){
     summary = `<b>${list.length} ผลล่าสุด</b>${flaggedCount?` · <span style="color:var(--red-dk)">ผิดปกติ ${flaggedCount}</span>`:` · ปกติทั้งหมด ✓`}${trending.length?` · trend ${trending.length}`:''}`;
   }
 
+  // Datalist: combine PCOS_LABS + user's history (so previously typed values appear)
+  const histLabNames = uniqueVals(list, 'name');
+  const allLabNames = [...new Set([...PCOS_LABS, ...histLabNames])];
+  const histUnits = uniqueVals(list, 'unit');
+  const histRefs = uniqueVals(list, 'refRange');
+
   const body = `
     <div class="med-form" id="med-form-lab">
       <div class="med-form-row">
         <div><label class="med-form-label">วันที่ตรวจ</label><input type="date" id="lab-date" value="${todayStr()}"></div>
         <div><label class="med-form-label">รายการ</label>
-          <input id="lab-name" placeholder="เริ่มพิมพ์..." list="pcos-labs">
-          <datalist id="pcos-labs">${PCOS_LABS.map(l=>`<option value="${l}">`).join('')}</datalist>
+          <input id="lab-name" placeholder="เริ่มพิมพ์..." list="dl-labnames" autocomplete="off">
+          <datalist id="dl-labnames">${allLabNames.map(l=>`<option value="${l}">`).join('')}</datalist>
         </div>
       </div>
       <div class="med-form-row">
-        <div><label class="med-form-label">ค่าที่ได้</label><input id="lab-value" placeholder="เช่น 12.5"></div>
-        <div><label class="med-form-label">หน่วย</label><input id="lab-unit" placeholder="ng/mL, mg/dL..."></div>
+        <div><label class="med-form-label">ค่าที่ได้</label><input id="lab-value" placeholder="เช่น 12.5" autocomplete="off"></div>
+        <div><label class="med-form-label">หน่วย</label><input id="lab-unit" placeholder="ng/mL, mg/dL..." list="dl-labunits" autocomplete="off"></div>
       </div>
-      <div class="med-form-field"><label class="med-form-label">ค่าอ้างอิง (ของแล็ปนั้น)</label><input id="lab-ref" placeholder="เช่น 30-100 หรือ < 5.7"></div>
+      <datalist id="dl-labunits">${histUnits.map(v=>`<option value="${v}">`).join('')}</datalist>
+      <div class="med-form-field"><label class="med-form-label">ค่าอ้างอิง (ของแล็ปนั้น)</label><input id="lab-ref" placeholder="เช่น 30-100 หรือ < 5.7" list="dl-labrefs" autocomplete="off"></div>
+      <datalist id="dl-labrefs">${histRefs.map(v=>`<option value="${v}">`).join('')}</datalist>
       <div class="med-form-field"><label class="med-form-label">สถานะ</label>
         <div class="med-flag-row q3-row" id="lab-flag-row">
           <button class="q3b" data-v="normal" onclick="pickQ3(this,'lab-flag')">✓ ปกติ</button>
@@ -3472,7 +3608,7 @@ function buildLabsCard(){
       </div>
       <div class="med-form-field"><label class="med-form-label">หมายเหตุ</label><textarea id="lab-notes" rows="2" placeholder="หมอบอกว่า... สังเกตว่า..."></textarea></div>
       <div class="med-form-actions">
-        <button class="med-form-cancel" onclick="toggleMedForm('lab')">ยกเลิก</button>
+        <button class="med-form-cancel" onclick="cancelEditLab()">ยกเลิก</button>
         <button class="med-form-save" onclick="saveLab()">บันทึก</button>
       </div>
     </div>
@@ -3504,6 +3640,29 @@ function autoFlagLab(value, refRange){
   }
   return null;
 }
+let _editingLabId = null;
+function editLab(id){
+  const l = S.medical.labs.find(x=>x.id===id);
+  if(!l) return;
+  _editingLabId = id;
+  const form = document.getElementById('med-form-lab');
+  if(form && !form.classList.contains('show')) form.classList.add('show');
+  setTimeout(()=>{
+    document.getElementById('lab-date').value = l.date;
+    document.getElementById('lab-name').value = l.name||'';
+    document.getElementById('lab-value').value = l.value||'';
+    document.getElementById('lab-unit').value = l.unit||'';
+    document.getElementById('lab-ref').value = l.refRange||'';
+    document.getElementById('lab-notes').value = l.notes||'';
+    document.querySelectorAll('#lab-flag-row .q3b').forEach(b=>b.classList.toggle('sel', b.dataset.v===(l.flag||'unknown')));
+    form.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }, 50);
+}
+function cancelEditLab(){
+  _editingLabId = null;
+  toggleMedForm('lab');
+  ['lab-name','lab-value','lab-unit','lab-ref','lab-notes'].forEach(id=>{const el=document.getElementById(id);if(el) el.value='';});
+}
 function saveLab(){
   const date = document.getElementById('lab-date')?.value;
   const name = document.getElementById('lab-name')?.value.trim();
@@ -3511,20 +3670,26 @@ function saveLab(){
   if(!date || !name || !value){showToast('ต้องมีอย่างน้อยวันที่ + รายการ + ค่าที่ได้');return;}
   let flag = document.querySelector('#lab-flag-row .q3b.sel')?.dataset.v||'unknown';
   const refRange = document.getElementById('lab-ref')?.value.trim()||'';
-  // Auto-flag if user left as 'unknown' but ref range provided
   if(flag === 'unknown' && refRange) {
     const auto = autoFlagLab(value, refRange);
     if(auto) flag = auto;
   }
-  const lab = {
-    id: nid(), date, name, value,
+  const data = {
+    date, name, value,
     unit: document.getElementById('lab-unit')?.value.trim()||'',
     refRange, flag,
-    notes: document.getElementById('lab-notes')?.value.trim()||'',
-    createdAt: Date.now()
+    notes: document.getElementById('lab-notes')?.value.trim()||''
   };
-  S.medical.labs.push(lab);saveS();
-  renderView('cycle');showToast('เพิ่มผลแล็ป 💉');
+  if(_editingLabId){
+    const idx = S.medical.labs.findIndex(x=>x.id===_editingLabId);
+    if(idx>=0) S.medical.labs[idx] = { ...S.medical.labs[idx], ...data, updatedAt:Date.now() };
+    _editingLabId = null;
+    showToast('แก้ไขแล็ปแล้ว ✓');
+  } else {
+    S.medical.labs.push({ id:nid(), ...data, createdAt:Date.now() });
+    showToast('เพิ่มผลแล็ป 💉');
+  }
+  saveS();renderView('cycle');
 }
 function deleteLab(id){
   if(!confirm('ลบรายการนี้?')) return;
@@ -3544,7 +3709,10 @@ function buildNotesCard(){
         <span class="med-tag ${n.tag==='question'?'q':'obs'}">${NOTE_TAG_TH[n.tag]||'📝'}</span>
       </div>
     </div>
-    <button class="med-del" onclick="deleteNote('${n.id}')">×</button>
+    <div style="display:flex;flex-direction:column;gap:2px;align-items:center">
+      <button class="med-del" onclick="editNote('${n.id}')" title="แก้ไข">✏️</button>
+      <button class="med-del" onclick="deleteNote('${n.id}')" title="ลบ">×</button>
+    </div>
   </div>`;
   // Smart summary
   let summary = null;
@@ -3573,7 +3741,7 @@ function buildNotesCard(){
         <textarea id="note-text" rows="3" placeholder="คำถามที่จะถามหมอครั้งหน้า · อาการที่สังเกต · side effect ของยา..."></textarea>
       </div>
       <div class="med-form-actions">
-        <button class="med-form-cancel" onclick="toggleMedForm('note')">ยกเลิก</button>
+        <button class="med-form-cancel" onclick="cancelEditNote()">ยกเลิก</button>
         <button class="med-form-save" onclick="saveNote()">บันทึก</button>
       </div>
     </div>
@@ -3581,17 +3749,40 @@ function buildNotesCard(){
 
   return accMedCard('📝 บันทึกการแพทย์', summary, body, 'note');
 }
+let _editingNoteId = null;
+function editNote(id){
+  const n = S.medical.notes.find(x=>x.id===id);
+  if(!n) return;
+  _editingNoteId = id;
+  const form = document.getElementById('med-form-note');
+  if(form && !form.classList.contains('show')) form.classList.add('show');
+  setTimeout(()=>{
+    document.getElementById('note-date').value = n.date;
+    document.getElementById('note-text').value = n.text||'';
+    document.getElementById('note-tag').value = n.tag||'other';
+    form.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }, 50);
+}
+function cancelEditNote(){
+  _editingNoteId = null;
+  toggleMedForm('note');
+  const el = document.getElementById('note-text'); if(el) el.value='';
+}
 function saveNote(){
   const date = document.getElementById('note-date')?.value;
   const text = document.getElementById('note-text')?.value.trim();
   if(!date || !text){showToast('ใส่วันที่ + เนื้อหาก่อนนะ');return;}
-  const n = {
-    id: nid(), date, text,
-    tag: document.getElementById('note-tag')?.value||'other',
-    createdAt: Date.now()
-  };
-  S.medical.notes.push(n);saveS();
-  renderView('cycle');showToast('เพิ่มบันทึกแล้ว 📝');
+  const data = { date, text, tag: document.getElementById('note-tag')?.value||'other' };
+  if(_editingNoteId){
+    const idx = S.medical.notes.findIndex(x=>x.id===_editingNoteId);
+    if(idx>=0) S.medical.notes[idx] = { ...S.medical.notes[idx], ...data, updatedAt:Date.now() };
+    _editingNoteId = null;
+    showToast('แก้ไขบันทึกแล้ว ✓');
+  } else {
+    S.medical.notes.push({ id:nid(), ...data, createdAt:Date.now() });
+    showToast('เพิ่มบันทึกแล้ว 📝');
+  }
+  saveS();renderView('cycle');
 }
 function deleteNote(id){
   if(!confirm('ลบบันทึกนี้?')) return;
@@ -3744,6 +3935,10 @@ function buildSettings(){
   return `<div class="px" style="padding-top:10px">
 
 <div class="card"><div class="sec">👤 ข้อมูลส่วนตัว</div>
+  <div class="qb"><div class="qb-l">ชื่อ / ชื่อเล่น</div>
+    <input class="lf" id="cfg-name" value="${p.name||''}" placeholder="(เรียกตัวคุณว่าอะไรดี)" maxlength="30">
+    <p class="small mt8">จะใช้ทักทายในหน้าแรก เช่น "อรุณสวัสดิ์ คุณ [ชื่อ]"</p>
+  </div>
   <div class="qb"><div class="qb-l">ตั้งใจว่า</div>
     <input class="lf" id="cfg-intent" value="${p.intention||''}" placeholder="(ใส่หรือไม่ใส่ก็ได้)">
     <p class="small mt8">แสดงเป็นข้อความต้อนรับในหน้าแรก</p>
@@ -3766,7 +3961,20 @@ function buildSettings(){
     <div style="flex:1">
       <div class="qb-l">น้ำหนักล่าสุด (kg)</div>
       <input class="num-input" id="cfg-weight" type="number" step="0.1" value="${w||''}" placeholder="—" style="width:100%;max-width:120px">
-      <p class="small mt8">${w?`บันทึกเมื่อ <b>${(()=>{const k=Object.keys(S.entries).sort().reverse().find(k=>S.entries[k]?.weight);return k?k.split('-').reverse().join('/'):'—';})()}</b>`:'ยังไม่เคยบันทึก'} · ปรับได้รายวันในหน้าวันนี้</p>
+      ${(() => {
+        if(!w) return '<p class="small mt8">ยังไม่เคยบันทึก · ปรับได้รายวันในหน้าวันนี้</p>';
+        const lastDate = Object.keys(S.entries).sort().reverse().find(k=>S.entries[k]?.weight);
+        const dateStr_ = lastDate?lastDate.split('-').reverse().join('/'):'—';
+        const start = p.weightStart;
+        let progressText = '';
+        if(start && start !== w) {
+          const diff = +(w - start).toFixed(1);
+          const arrow = diff > 0 ? '↑' : '↓';
+          const color = (p.weightGoal && p.weightGoal < start && diff < 0) || (p.weightGoal && p.weightGoal > start && diff > 0) ? 'var(--green-dk)' : 'var(--orange-dk)';
+          progressText = ` · <b style="color:${color}">${arrow} ${Math.abs(diff)} kg จากตอนเริ่ม (${start})</b>`;
+        }
+        return `<p class="small mt8">บันทึกเมื่อ <b>${dateStr_}</b> · ปรับได้รายวันในหน้าวันนี้${progressText}</p>`;
+      })()}
     </div>
   </div>
   <div class="qb-l" style="margin-top:14px">น้ำหนักเป้าหมาย (kg)</div>
@@ -3937,6 +4145,7 @@ function cfgDobChange(inp){
   } else if(lbl) lbl.style.display='none';
 }
 function saveSettings(){
+  S.profile.name=document.getElementById('cfg-name')?.value.trim()||'';
   S.profile.intention=document.getElementById('cfg-intent')?.value.trim()||'';
   const dob=document.getElementById('cfg-dob')?.value||'';
   S.profile.dob = dob;
@@ -3959,17 +4168,19 @@ function saveSettings(){
   if(newHip && Math.round(newHip*10)/10 !== latestHip()) {
     setEntry(todayStr(), {hipMeas: Math.round(newHip*10)/10});
   }
-  // Weight goal: reset baseline when goal changes
+  // Weight goal handling
   const newGoal=parseFloat(document.getElementById('cfg-weight-goal')?.value);
-  const goalChanged = (newGoal||null) !== (S.profile.weightGoal||null);
   if(newGoal) {
     S.profile.weightGoal = Math.round(newGoal*10)/10;
-    if(goalChanged || !S.profile.weightStart) {
-      S.profile.weightStart = latestWeight() || newW || null;
+    // Only set baseline if it's never been set (preserve original start point)
+    if(!S.profile.weightStart) {
+      // Prefer the earliest weight in entries; fallback to current
+      const earliest = Object.entries(S.entries).filter(([,e])=>e.weight).sort((a,b)=>a[0].localeCompare(b[0]))[0];
+      S.profile.weightStart = earliest ? earliest[1].weight : (newW || null);
     }
   } else {
     S.profile.weightGoal = null;
-    S.profile.weightStart = null;
+    // Keep weightStart intact even if goal removed — user may re-enable
   }
   saveS();showToast('บันทึกแล้ว ✅');
 }
