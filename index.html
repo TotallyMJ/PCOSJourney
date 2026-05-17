@@ -3533,17 +3533,22 @@ function restoreAllMealSuggestions(){
   showToast('คืนค่าเมนูที่ซ่อนทั้งหมด');
 }
 function collectMealHistory(){
+  // Each food = 1 item. Split by whitespace / comma / + so user can manage individual items.
   const result = { morning:[], lunch:[], dinner:[], snack:[] };
   const seen = { morning:new Set(), lunch:new Set(), dinner:new Set(), snack:new Set() };
-  // Most recent first so newest entries appear first in datalist
   Object.entries(S.entries).sort((a,b)=>b[0].localeCompare(a[0])).forEach(([,e]) => {
     if(!e.meals) return;
     ['morning','lunch','dinner','snack'].forEach(k => {
-      const v = e.meals[k]?.trim();
-      if(v && !seen[k].has(v)) {
-        seen[k].add(v);
-        result[k].push(v);
-      }
+      const raw = e.meals[k]?.trim();
+      if(!raw) return;
+      // Split by whitespace, comma, plus → each token = 1 food item
+      const items = raw.split(/[\s,+]+/).map(s => s.trim()).filter(s => s.length > 0);
+      items.forEach(item => {
+        if(!seen[k].has(item)) {
+          seen[k].add(item);
+          result[k].push(item);
+        }
+      });
     });
   });
   // Filter out hidden
