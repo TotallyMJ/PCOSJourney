@@ -1591,6 +1591,8 @@ function switchTab(tab, fromBack){
   }
   window._keepViewingDate = false;
   currentTab = tab;
+  // Persist current tab in URL hash (survives reload)
+  try { history.replaceState(null, '', '#'+tab); } catch(e){}
   document.querySelectorAll('.nb').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
   document.getElementById('tb-title').textContent = TAB_TITLES[tab]||'';
   // Toggle back button: hide on home (root), show everywhere else
@@ -1622,6 +1624,22 @@ function renderView(tab) {
   else if(tab==='cycle') v.innerHTML = buildCycle();
   else if(tab==='settings') v.innerHTML = buildSettings();
   bindEvents(tab);
+  disableInputAutofill();
+}
+
+// Suppress mobile keyboard autofill + password-manager popups on text inputs
+function disableInputAutofill(){
+  document.querySelectorAll('#view input, #view textarea').forEach(el => {
+    // Skip date/time/number inputs and password inputs (token)
+    const t = el.type;
+    if(t === 'date' || t === 'time' || t === 'number' || t === 'password') return;
+    if(!el.hasAttribute('autocomplete') || el.getAttribute('autocomplete')==='on') {
+      el.setAttribute('autocomplete', 'off');
+    }
+    if(!el.dataset.formType) el.dataset.formType = 'other';
+    el.setAttribute('data-lpignore', 'true'); // LastPass
+    el.setAttribute('data-1p-ignore', 'true'); // 1Password
+  });
 }
 
 // ═══════════════════════════════════════
@@ -1849,16 +1867,38 @@ function qlSave(){
 }
 
 // Doctor prep — show banner if appointment within 3 days
+function appointmentIsPassed(a){
+  const today = todayStr();
+  if(a.date < today) return true;
+  if(a.date > today) return false;
+  // Same date — check time if available
+  if(a.time){
+    const now = new Date();
+    const [h,m] = a.time.split(':').map(Number);
+    const apptMin = h*60 + m;
+    const nowMin = now.getHours()*60 + now.getMinutes();
+    return apptMin < nowMin;
+  }
+  return false; // no time → keep showing all day
+}
 function buildDoctorPrepBanner(){
-  const apps = (S.medical?.appointments||[]).filter(a=>a.date>=todayStr()).sort((a,b)=>a.date.localeCompare(b.date));
+  // Filter out passed appointments (including today's that already happened by time)
+  const apps = (S.medical?.appointments||[])
+    .filter(a => !appointmentIsPassed(a))
+    .sort((a,b) => {
+      if(a.date !== b.date) return a.date.localeCompare(b.date);
+      return (a.time||'99:99').localeCompare(b.time||'99:99');
+    });
   if(!apps.length) return '';
   const next = apps[0];
   const days = Math.ceil((parseDate(next.date)-parseDate(todayStr()))/86400000);
   if(days>3) return ''; // only show within 3 days
+  const whenLabel = days===0?'วันนี้':days===1?'พรุ่งนี้':`อีก ${days} วัน`;
+  const timeLabel = next.time ? ` · ${next.time} น.` : '';
   return `<div class="docprep-card" onclick="openDoctorPrep('${next.id}')">
     <div class="docprep-emo">📋</div>
     <div class="docprep-info">
-      <div class="docprep-h">เตรียมไปหาหมอ ${days===0?'วันนี้':days===1?'พรุ่งนี้':`อีก ${days} วัน`}</div>
+      <div class="docprep-h">เตรียมไปหาหมอ ${whenLabel}${timeLabel}</div>
       <div class="docprep-s">${next.doctor||'นัดหมอ'} · ${next.reason||''} · กดเพื่อดูสรุป</div>
     </div>
     <span style="font-size:18px;color:var(--orange-dk)">→</span>
@@ -1970,10 +2010,17 @@ ${isToday && next!==null ? `<div class="countdown-card">
 ${modulesHTML}
 
 <div class="px" style="padding:10px 0 6px">
-  <button class="save-btn ${e.saved?'saved':''}" id="save-btn" onclick="saveToday()">
-    ${e.saved?'✓ บันทึกแล้ว — แก้ไขได้ตลอด':isToday?'💾 บันทึกวันนี้':`💾 บันทึก${dayLabel}`}
-  </button>
-  ${e.saved?`<p class="enc">${isToday?'บันทึกแล้วนะ ขอบคุณที่ดูแลตัวเอง':'บันทึกย้อนหลังเรียบร้อย ขอบคุณที่ใส่ใจ'} 🌸</p>`:''}
+  ${e.saved ? `
+    <div style="text-align:center;padding:14px;background:linear-gradient(135deg,var(--green-l),#F4FAEB);border-radius:13px">
+      <div style="font-size:14px;font-weight:600;color:var(--green-dk)">✓ บันทึกอัตโนมัติแล้ว</div>
+      <p class="enc" style="margin-top:4px">${isToday?'ขอบคุณที่ดูแลตัวเอง':'บันทึกย้อนหลังเรียบร้อย'} 🌸</p>
+    </div>
+  ` : `
+    <div style="text-align:center;padding:14px;background:var(--subtle);border-radius:13px">
+      <div style="font-size:13px;color:var(--text-s)">ยังไม่ได้กรอกข้อมูลอะไรเลย</div>
+      <p class="small" style="margin-top:4px">เริ่มกรอกด้านบนได้เลย · ระบบจะบันทึกให้อัตโนมัติ</p>
+    </div>
+  `}
 </div>
 
 </div>`;
@@ -2513,7 +2560,21 @@ function collectToday(){
 }
 function autoSaveToday(){
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(()=>{const data=collectToday();setEntry(activeDate(),data);},500);
+  saveTimer=setTimeout(()=>{
+    const data=collectToday();
+    // Auto-mark saved as soon as any meaningful data exists
+    if(!data.saved){
+      const hasData = data.mood || data.energy || data.sleepHours || data.weight ||
+        (data.periodFlow && data.periodFlow !== 'none') || (typeof data.painLevel === 'number' && data.painLevel > 0) || data.painNote ||
+        (data.exercise && data.exercise.type && data.exercise.type !== 'ไม่ได้ออกกำลัง') ||
+        (data.water && data.water > 0) || (data.symptoms && data.symptoms.length) ||
+        (data.meds && Object.values(data.meds).some(Boolean)) ||
+        data.journal || data.oneGood || data.tomorrow || data.bodyInsight ||
+        (data.meals && Object.values(data.meals).some(v => v && v.trim()));
+      if(hasData) data.saved = true;
+    }
+    setEntry(activeDate(),data);
+  },500);
 }
 function saveToday(){
   const data=collectToday();data.saved=true;
@@ -3622,11 +3683,12 @@ function restoreAllMealSuggestions(){ restoreHiddenSuggestions('meal'); }
 // Falls back to space split for legacy entries that don't use commas
 function parseFoodList(text){
   if(!text) return [];
+  // Only comma/+ as separators · single string (even with spaces) = 1 item
+  // So 'chia seed water' = 1 chip, but 'A, B, C' = 3 chips
   if(text.includes(',') || text.includes('+')){
     return text.split(/[,+]/).map(s=>s.trim()).filter(s=>s.length>0);
   }
-  // No commas → legacy format, split by whitespace
-  return text.split(/\s+/).filter(s=>s.length>0);
+  return [text.trim()];
 }
 function joinFoodList(items){
   return items.filter(s=>s && s.trim()).map(s=>s.trim()).join(', ');
@@ -3706,7 +3768,7 @@ function buildAppointmentsCard(){
     return `<div class="med-item med-${rel.status}">
       ${dateBadge(a.date, rel.status)}
       <div class="med-content">
-        <span class="med-rel-hint ${rel.status}">${rel.label}</span>
+        <span class="med-rel-hint ${rel.status}">${rel.label}${a.time?` · ${a.time} น.`:''}</span>
         <div class="med-title">${a.doctor||'นัดหมอ'}${a.clinic?` · <span style="font-weight:400;color:var(--text-s)">${a.clinic}</span>`:''}</div>
         ${a.reason?`<div class="med-meta">เรื่อง: <b>${a.reason}</b></div>`:''}
         ${a.outcome?`<div class="med-meta" style="background:var(--green-l);padding:6px 9px;border-radius:8px;margin-top:5px"><b>📋 หลังพบหมอ:</b> ${a.outcome}</div>`:''}
@@ -3742,11 +3804,12 @@ function buildAppointmentsCard(){
     <div class="med-form" id="med-form-appt">
       <div class="med-form-row">
         <div><label class="med-form-label">วันที่นัด</label><input type="date" id="appt-date" value="${todayStr()}"></div>
-        <div>
-          <label class="med-form-label">หมอ/แพทย์</label>
-          <input id="appt-doctor" placeholder="เช่น นพ.สมชาย" list="dl-doctors" autocomplete="off">
-          ${histBlock('doctor', doctors)}
-        </div>
+        <div><label class="med-form-label">เวลา</label><input type="time" id="appt-time" placeholder="--:--"></div>
+      </div>
+      <div class="med-form-field">
+        <label class="med-form-label">หมอ/แพทย์</label>
+        <input id="appt-doctor" placeholder="เช่น นพ.สมชาย" list="dl-doctors" autocomplete="off">
+        ${histBlock('doctor', doctors)}
       </div>
       <datalist id="dl-doctors">${doctors.map(v=>`<option value="${v}">`).join('')}</datalist>
       <div class="med-form-field">
@@ -3777,6 +3840,7 @@ function editAppointment(id){
   if(form && !form.classList.contains('show')) form.classList.add('show');
   setTimeout(()=>{
     document.getElementById('appt-date').value = a.date;
+    if(document.getElementById('appt-time')) document.getElementById('appt-time').value = a.time||'';
     document.getElementById('appt-doctor').value = a.doctor||'';
     document.getElementById('appt-clinic').value = a.clinic||'';
     document.getElementById('appt-reason').value = a.reason||'';
@@ -3787,13 +3851,14 @@ function editAppointment(id){
 function cancelEditAppt(){
   _editingApptId = null;
   toggleMedForm('appt');
-  ['appt-doctor','appt-clinic','appt-reason','appt-outcome'].forEach(id=>{const el=document.getElementById(id);if(el) el.value='';});
+  ['appt-doctor','appt-clinic','appt-reason','appt-outcome','appt-time'].forEach(id=>{const el=document.getElementById(id);if(el) el.value='';});
 }
 function saveAppointment(){
   const date = document.getElementById('appt-date')?.value;
   if(!date){showToast('ใส่วันที่ก่อนนะ');return;}
   const data = {
     date,
+    time: document.getElementById('appt-time')?.value||'',
     doctor: document.getElementById('appt-doctor')?.value.trim()||'',
     clinic: document.getElementById('appt-clinic')?.value.trim()||'',
     reason: document.getElementById('appt-reason')?.value.trim()||'',
@@ -4899,7 +4964,11 @@ loadS();
   if(S.profile.setupComplete || S.profile.name){
     document.getElementById('setup').style.display='none';
     document.getElementById('app').classList.add('show');
-    switchTab('home');
+    // Restore last tab from URL hash (if valid)
+    const validTabs = ['home','today','weekly','monthly','cycle','settings'];
+    const fromHash = (window.location.hash||'').slice(1).split('?')[0];
+    const startTab = validTabs.includes(fromHash) ? fromHash : 'home';
+    switchTab(startTab);
     // Background check for newer cloud data
     if(syncReady() && !localEmpty) setTimeout(autoSyncOnLoad, 800);
   }
