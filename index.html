@@ -564,6 +564,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .med-dot.missed{background:white;border:1.5px solid var(--red-b)}
 .med-dot.unknown{background:var(--subtle);border:1.5px dashed var(--border-l)}
 .med-dot.future{background:transparent;border:1.5px dashed var(--border-l);opacity:.4}
+.med-dot.stopped{background:var(--orange-l);border:1.5px solid var(--orange);opacity:.5}
 .med-week{display:flex;gap:3px}
 .med-weeks{display:flex;gap:8px;flex-wrap:wrap}
 
@@ -2235,9 +2236,12 @@ const MODULE_RENDERERS = {
     </div>`;
   },
   meds: (e) => {
-    const meds = S.profile.meds||[];
+    // Show only meds that were active on the viewed date OR have explicit data in this entry
+    const allMeds = S.profile.meds||[];
+    const dt = activeDate();
+    const meds = allMeds.filter(m => medShowInEntry(m, dt, e));
     const todayE = e;
-    const extras = Object.keys(todayE.meds||{}).filter(name=>!meds.find(m=>m.name===name));
+    const extras = Object.keys(todayE.meds||{}).filter(name=>!allMeds.find(m=>m.name===name));
     const helpText = 'ตั้งค่ารายการยาและ supplement ที่กินประจำในหน้า <a onclick="switchTab(&apos;settings&apos;)">ตั้งค่า</a> · ถ้าเพิ่มเฉพาะวันนี้ (เช่น วิตามินเสริม) เพิ่มได้ในช่องด้านล่าง';
     if(meds.length===0 && extras.length===0) {
       return accCard('💊 ยา / supplement', helpText, null, `
@@ -2621,11 +2625,14 @@ function buildWeekly(){
   let medsHTML='';
   if(meds.length){
     medsHTML = meds.map(m=>{
-      const taken = saved7.filter(e=>e.meds&&e.meds[m.name]).length;
-      const total = saved7.length||1;
+      // Only count days when med was active
+      const activeDays = saved7.filter(e => medActiveOn(m, e.date));
+      const taken = activeDays.filter(e=>e.meds&&e.meds[m.name]).length;
+      const total = activeDays.length||1;
       const pct = Math.round(taken/total*100);
       const color = pct>=80?'var(--green)':pct>=50?'var(--purple-m)':'var(--orange)';
-      return `<div class="prog-r"><div class="prog-l">${m.name}</div>
+      const stoppedTag = m.stoppedDate ? ` <span style="font-size:9px;color:var(--orange-dk);background:var(--orange-l);padding:1px 5px;border-radius:6px">หยุดแล้ว</span>` : '';
+      return `<div class="prog-r"><div class="prog-l">${m.name}${stoppedTag}</div>
         <div class="prog-b"><div class="prog-f" style="width:${pct}%;background:${color}"></div></div>
         <div class="prog-v">${pct}% (${taken}/${total})</div></div>`;
     }).join('');
@@ -3078,16 +3085,20 @@ function buildMedsAdherenceCard(curEntries, lastEntries){
         const dk = year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
         const e = getEntry(dk);
         const isFuture = dk > today;
+        const active = medActiveOn(med, dk);
         if(isFuture) dots.push({status:'future', d});
+        else if(!active) { dots.push({status:'stopped', d}); }
         else if(e.meds && e.meds[med.name]) { dots.push({status:'taken', d}); taken++; total++; }
         else if(e.saved) { dots.push({status:'missed', d}); total++; }
         else dots.push({status:'unknown', d});
       }
       const pct = total ? Math.round(taken/total*100) : 0;
+      const stoppedTag = med.stoppedDate ? ' <span style="font-size:9px;color:var(--orange-dk);background:var(--orange-l);padding:1px 6px;border-radius:6px;font-weight:600">⏸ หยุดแล้ว</span>' : '';
 
-      // Last month delta
-      const lTaken = lastEntries.filter(e => e.meds && e.meds[med.name]).length;
-      const lTotal = lastEntries.filter(e => e.saved).length;
+      // Last month delta — also filter by active
+      const lActiveDays = lastEntries.filter(e => e.saved && medActiveOn(med, e.date));
+      const lTaken = lActiveDays.filter(e => e.meds && e.meds[med.name]).length;
+      const lTotal = lActiveDays.length;
       const lPct = lTotal>=5 ? Math.round(lTaken/lTotal*100) : null;
       const delta = lPct !== null ? pct - lPct : null;
 
@@ -3105,7 +3116,7 @@ function buildMedsAdherenceCard(curEntries, lastEntries){
 
       return `<div style="margin-bottom:16px">
         <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:7px">
-          <span style="font-size:13.5px;font-weight:600;flex:1">${med.name}</span>
+          <span style="font-size:13.5px;font-weight:600;flex:1">${med.name}${stoppedTag}</span>
           <span style="font-size:11px;color:var(--text-s)">${taken}/${total} วัน</span>
           <span style="font-size:18px;font-weight:700;color:${statusColor}">${total?pct+'%':'—'}</span>
         </div>
@@ -3123,6 +3134,7 @@ function buildMedsAdherenceCard(curEntries, lastEntries){
       <span style="display:flex;align-items:center;gap:5px"><span class="med-dot taken"></span> กินแล้ว</span>
       <span style="display:flex;align-items:center;gap:5px"><span class="med-dot missed"></span> ลืม/ไม่ได้กิน</span>
       <span style="display:flex;align-items:center;gap:5px"><span class="med-dot unknown"></span> ยังไม่บันทึก</span>
+      <span style="display:flex;align-items:center;gap:5px"><span class="med-dot stopped"></span> หยุดยา</span>
       <span style="display:flex;align-items:center;gap:5px"><span class="med-dot future"></span> อนาคต</span>
     </div>
   </div>`;
@@ -4392,14 +4404,22 @@ function buildSettings(){
 }
 
 function renderMedEditor(m,i){
-  // Normalize: support legacy m.time string + new m.times array
   const times = Array.isArray(m.times) ? m.times : (m.time ? [m.time] : []);
   const isAny = times.includes('any');
-  return `<div class="med-editor-row" data-idx="${i}">
+  const stopped = !!m.stoppedDate;
+  const stopFmt = stopped ? (()=>{const d=parseDate(m.stoppedDate);const months=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return `${d.getDate()} ${months[d.getMonth()]}`;})() : '';
+  return `<div class="med-editor-row" data-idx="${i}" style="${stopped?'opacity:.7':''}">
     <div class="med-edit-top">
-      <input class="med-edit-name" data-field="name" value="${m.name}" onchange="cfgUpdateMed(${i},'name',this.value)">
-      <button class="med-edit-x" onclick="cfgRemoveMed(${i})">×</button>
+      <input class="med-edit-name" data-field="name" value="${m.name}" onchange="cfgUpdateMed(${i},'name',this.value)" ${stopped?'style="text-decoration:line-through;text-decoration-color:var(--text-m)"':''}>
+      <button class="med-edit-x" onclick="cfgRemoveMed(${i})" title="ลบถาวร">×</button>
     </div>
+    ${stopped ? `
+      <div style="background:var(--orange-l);border-radius:9px;padding:8px 11px;margin:6px 0;display:flex;align-items:center;gap:8px">
+        <span style="font-size:14px">⏸️</span>
+        <div style="flex:1;font-size:11.5px;color:var(--orange-dk)">หยุดยานี้เมื่อ <b>${stopFmt}</b> · ข้อมูลในวันก่อนหน้านี้ยังคงอยู่</div>
+        <button onclick="cfgResumeMed(${i})" style="background:var(--green);color:white;border:none;padding:5px 10px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer">▶️ เริ่มใหม่</button>
+      </div>
+    ` : ''}
     <div style="font-size:10px;color:var(--text-m);margin-bottom:3px">เวลากิน (เลือกได้หลายช่วง)</div>
     <div class="med-edit-pills" data-field="times">
       ${['morning','noon','evening','night'].map(t=>`<button class="med-edit-pill ${times.includes(t)&&!isAny?'on':''}" ${isAny?'style="opacity:.35"':''} onclick="cfgToggleMedTime(${i},'${t}',this)">${TIME_TH[t]}</button>`).join('')}
@@ -4409,6 +4429,7 @@ function renderMedEditor(m,i){
     <div class="med-edit-pills" data-field="meal">
       ${['before','after','with','any'].map(t=>`<button class="med-edit-pill ${(m.meal||'any')===t?'on':''}" onclick="cfgSetMedField(${i},'meal','${t}',this)">${MEAL_TH[t]}</button>`).join('')}
     </div>
+    ${!stopped ? `<button onclick="cfgStopMed(${i})" style="margin-top:10px;background:transparent;border:1.5px dashed var(--orange);color:var(--orange-dk);padding:6px 12px;border-radius:9px;font-size:11px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:5px">⏸️ หยุดกินยานี้</button>` : ''}
   </div>`;
 }
 
@@ -4434,6 +4455,34 @@ function cfgSetMedAny(i, el){
   renderView('settings');
 }
 
+// === Medication lifecycle (start/stop without losing data) ===
+function medActiveOn(m, date){
+  // Returns true if this med should be in active list on the given date
+  if(m.startedDate && date < m.startedDate) return false;
+  if(m.stoppedDate && date > m.stoppedDate) return false;
+  return true;
+}
+function medShowInEntry(m, date, entry){
+  // Show in daily form if: med was active OR entry already has data for it
+  if(entry?.meds && entry.meds[m.name] !== undefined) return true;
+  return medActiveOn(m, date);
+}
+function cfgStopMed(i){
+  const m = S.profile.meds[i]; if(!m) return;
+  if(!confirm(`หยุดกิน "${m.name}" ตั้งแต่วันนี้?\n\n· จะไม่แสดงในหน้า "วันนี้" สำหรับวันถัดๆไป\n· ข้อมูลในวันที่ผ่านมายังคงอยู่ครบ\n· เริ่มใหม่ได้ทุกเมื่อ`)) return;
+  m.stoppedDate = todayStr();
+  saveS();renderView('settings');
+  showToast(`หยุด "${m.name}" แล้ว · ข้อมูลเก่าไม่หาย`);
+}
+function cfgResumeMed(i){
+  const m = S.profile.meds[i]; if(!m) return;
+  delete m.stoppedDate;
+  // Reset startedDate to today so the gap is marked
+  m.startedDate = todayStr();
+  saveS();renderView('settings');
+  showToast(`เริ่มกิน "${m.name}" ใหม่แล้ว ▶️`);
+}
+
 function cfgPickGoal(el){document.querySelectorAll('#cfg-goal-row .goal-b').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');}
 function cfgPickAct(el){document.querySelectorAll('#cfg-act-row .act-b').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');}
 function cfgUpdateMed(i,f,v){if(S.profile.meds[i]){S.profile.meds[i][f]=v;saveS();}}
@@ -4447,7 +4496,7 @@ function cfgRemoveMed(i){S.profile.meds.splice(i,1);saveS();renderView('settings
 function cfgAddMed(){
   const inp=document.getElementById('cfg-new-med');const v=inp?.value.trim();if(!v) return;
   if(!S.profile.meds) S.profile.meds=[];
-  S.profile.meds.push({id:nid(),name:v,times:['morning'],meal:'any'});saveS();
+  S.profile.meds.push({id:nid(),name:v,times:['morning'],meal:'any',startedDate:todayStr()});saveS();
   inp.value='';renderView('settings');showToast('เพิ่ม '+v+' 💊');
 }
 function toggleModule(el,id){
