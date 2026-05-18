@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Bloom 🌸 PCOS Journal</title>
-<meta name="description" content="บันทึกประจำวัน + ติดตามรอบเดือน + medical tracking สำหรับคน PCOS">
+<title>Bloom 🌸 PMOS Journal</title>
+<meta name="description" content="บันทึกประจำวัน + ติดตามรอบเดือน + medical tracking สำหรับคน PMOS">
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#D4537E">
@@ -455,7 +455,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 .takeaway.concern .takeaway-tag{background:var(--orange);color:white}
 .takeaway.win .takeaway-tag{background:var(--purple);color:white}
 
-/* === PCOS REGULARITY SCORE === */
+/* === PMOS REGULARITY SCORE === */
 .pcos-score-card{background:linear-gradient(135deg,#F8F4FE,#FBEAF0);border-radius:var(--r);padding:16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow)}
 .pcos-score-letter{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:white;flex-shrink:0;box-shadow:0 3px 10px rgba(0,0,0,.1)}
 .pcos-score-letter.A{background:linear-gradient(135deg,#5DCAA5,#3DAD85)}
@@ -770,7 +770,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 <div id="setup">
   <div class="setup-logo">🌸</div>
   <div class="setup-h">Bloom with Your Body</div>
-  <div class="setup-s">ช่วยให้เธอจัดการ PCOS<br>และรู้สึกดีกับร่างกายตัวเองมากขึ้น</div>
+  <div class="setup-s">ช่วยให้เธอจัดการ PMOS<br>และรู้สึกดีกับร่างกายตัวเองมากขึ้น</div>
   <div class="setup-form">
     <label class="s-label">ตั้งใจว่า... (ถ้ามี)</label>
     <input class="s-input" id="s-intent" placeholder="เช่น อยากรู้สึกมีพลังงานมากขึ้น" maxlength="60">
@@ -861,9 +861,9 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
       <div class="sync-step-num">1</div>
       <div class="sync-step-content">
         <p><b>สร้าง Personal Access Token (PAT)</b></p>
-        <a class="sync-link-btn" href="https://github.com/settings/tokens/new?description=Bloom+PCOS+App&scopes=gist" target="_blank" rel="noopener">เปิดหน้า GitHub →</a>
+        <a class="sync-link-btn" href="https://github.com/settings/tokens/new?description=Bloom+PMOS+App&scopes=gist" target="_blank" rel="noopener">เปิดหน้า GitHub →</a>
         <ol>
-          <li><b>Note:</b> "Bloom PCOS App"</li>
+          <li><b>Note:</b> "Bloom PMOS App"</li>
           <li><b>Expiration:</b> เลือกตามต้องการ (90 days หรือ No expiration)</li>
           <li><b>Scopes:</b> เช็ค ✓ <code>gist</code> เท่านั้น</li>
           <li>กด <b>Generate token</b></li>
@@ -903,7 +903,7 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
 // CONSTANTS
 // ═══════════════════════════════════════
 const STORE_KEY = 'bloom_v3';
-// Order optimized for PCOS tracking priorities:
+// Order optimized for PMOS tracking priorities:
 // cycle → symptoms → cravings → pain → mood → energy/sleep → weight
 // → meals/water/exercise → meds → reflection
 const ALL_MODULES = [
@@ -947,7 +947,7 @@ let S = {
   medical:{ appointments:[], labs:[], notes:[] },
   sync:{ enabled:false, gistId:'', pat:'', lastSync:0 }
 };
-const PCOS_LABS = ['Fasting Insulin','Fasting Glucose','HbA1c','Testosterone (Total)','Testosterone (Free)','DHEA-S','LH','FSH','AMH','Estradiol','Progesterone','Vit D (25-OH)','TSH','Free T4','Prolactin','SHBG','Cholesterol','Triglycerides','HDL','LDL'];
+const PMOS_LABS = ['Fasting Insulin','Fasting Glucose','HbA1c','Testosterone (Total)','Testosterone (Free)','DHEA-S','LH','FSH','AMH','Estradiol','Progesterone','Vit D (25-OH)','TSH','Free T4','Prolactin','SHBG','Cholesterol','Triglycerides','HDL','LDL'];
 const NOTE_TAG_TH = { question:'❓ คำถาม', observation:'👀 ข้อสังเกต', other:'📝 อื่นๆ' };
 let currentTab = 'home';
 let calMonth = null;
@@ -990,7 +990,7 @@ function loadS() {
       if(!S.profile.modulesEnabled) {
         S.profile.modulesEnabled = Object.fromEntries(ALL_MODULES.map(m=>[m.id, m.default]));
       }
-      // Migrate to PCOS-priority module order if user hasn't customized
+      // Migrate to PMOS-priority module order if user hasn't customized
       if((S.profile.moduleOrderV||1) < MODULE_ORDER_V) {
         S.profile.moduleOrder = ALL_MODULES.map(m=>m.id);
         S.profile.moduleOrderV = MODULE_ORDER_V;
@@ -1691,7 +1691,7 @@ function buildHome(){
   if(next!==null && next<=3 && next>=0) aware.push({color:'var(--pink)',text:`🩸 ประจำเดือนคาดว่าจะมาในอีก ${next} วัน · เตรียมตัวได้`});
   if(next!==null && next<0 && next>=-5) aware.push({color:'var(--orange)',text:`🩸 เลยกำหนดมา ${-next} วัน · ปกติมั้ย? ถ้าผิดเดิมไปไกล ปรึกษาหมอ`});
 
-  // === Phase-specific PCOS tip ===
+  // === Phase-specific PMOS tip ===
   if(phase.key === 'luteal' || phase.key === 'pms'){
     const cravingCount = days7.filter(e => (e.cravings||[]).length > 0).length;
     if(cravingCount >= 3) aware.push({color:'var(--purple-m)',text:`🍫 ช่วง ${phase.name} มี craving บ่อย · ลองโปรตีน + ผักก่อนของหวาน จะรู้สึกอิ่มกว่า`});
@@ -2166,7 +2166,7 @@ const MODULE_RENDERERS = {
         </div>
         <p class="small mt8">💡 ไม่ใส่นาทีก็ได้ · เช่น เดินเยอะตอนเที่ยว/ทำงาน ไม่ต้องนับเวลา</p>
       </div>`;
-    return accCard('🏃 การเคลื่อนไหว / ออกกำลังกาย', 'บันทึกการเคลื่อนไหวทุกประเภท · สำหรับ PCOS แนะนำ low-impact (เดิน/โยคะ/ว่ายน้ำ) ช่วย insulin sensitivity โดยไม่เพิ่ม cortisol', summary, body);
+    return accCard('🏃 การเคลื่อนไหว / ออกกำลังกาย', 'บันทึกการเคลื่อนไหวทุกประเภท · สำหรับ PMOS แนะนำ low-impact (เดิน/โยคะ/ว่ายน้ำ) ช่วย insulin sensitivity โดยไม่เพิ่ม cortisol', summary, body);
   },
   meals: (e) => {
     const protTarget = calcProteinTarget();
@@ -2250,7 +2250,7 @@ const MODULE_RENDERERS = {
     const body = `<div class="ex-row crv-row" id="crv-row">${presets.map(s=>`<button class="eb ${sel.includes(s)?'sel':''}" data-v="${s}" onclick="toggleCraving(this)">${s}</button>`).join('')}
       </div>
       <p class="small mt8">💡 อยากกินบ่อยช่วง PMS เป็นเรื่องปกติ ไม่ต้องโทษตัวเอง</p>`;
-    return accCard('🍫 ของที่อยากกิน (cravings)', 'คน PCOS มักอยากกินของหวานและแป้งมากกว่าปกติ เพราะ insulin spike · บันทึกเพื่อดู pattern ว่าอยากกินช่วงไหนของรอบ', summary, body);
+    return accCard('🍫 ของที่อยากกิน (cravings)', 'คน PMOS มักอยากกินของหวานและแป้งมากกว่าปกติ เพราะ insulin spike · บันทึกเพื่อดู pattern ว่าอยากกินช่วงไหนของรอบ', summary, body);
   },
   stress: (e) => {
     const emojis=['😌','🙂','😐','😟','😰'];
@@ -2264,7 +2264,7 @@ const MODULE_RENDERERS = {
     const h = e.hipMeas;
     const whr = (w&&h) ? Math.round((w/h)*100)/100 : null;
     const whrFlag = whr ? (whr>=0.85?'risk':whr>=0.80?'caution':'ok') : null;
-    return `<div class="card">${secHelp('📏 รอบตัว','PCOS มัก central obesity (ลงท้อง) · รอบเอว/สะโพก = สำคัญกว่า BMI · WHR ≥ 0.85 = เพิ่มความเสี่ยง insulin resistance')}
+    return `<div class="card">${secHelp('📏 รอบตัว','PMOS มัก central obesity (ลงท้อง) · รอบเอว/สะโพก = สำคัญกว่า BMI · WHR ≥ 0.85 = เพิ่มความเสี่ยง insulin resistance')}
       <div class="bm-grid">
         <div class="bm-block">
           <div class="bm-l">รอบเอว</div>
@@ -2279,7 +2279,7 @@ const MODULE_RENDERERS = {
         <div style="flex:1"><div style="font-size:10px;color:var(--purple-dkr);font-weight:500;text-transform:uppercase;letter-spacing:.07em">Waist-Hip Ratio</div><div style="font-size:18px;font-weight:700;color:var(--purple-dkr)">${whr.toFixed(2)}</div></div>
         <div style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:9px;background:${whrFlag==='ok'?'var(--green-l)':whrFlag==='caution'?'var(--orange-l)':'var(--red-l)'};color:${whrFlag==='ok'?'var(--green-dk)':whrFlag==='caution'?'var(--orange-dk)':'var(--red-dk)'}">${whrFlag==='ok'?'ปกติ ✓':whrFlag==='caution'?'ระวัง':'เสี่ยง'}</div>
       </div>` : ''}
-      <p class="small mt8">💡 ชั่งสัปดาห์ละครั้งก็พอ · WHR เป็น marker ที่แม่นยำกว่า BMI สำหรับ PCOS</p>
+      <p class="small mt8">💡 ชั่งสัปดาห์ละครั้งก็พอ · WHR เป็น marker ที่แม่นยำกว่า BMI สำหรับ PMOS</p>
     </div>`;
   },
   meds: (e) => {
@@ -2812,12 +2812,12 @@ function buildMonthly(){
     </div>`).join('')}
   </div>`;
 
-  // PCOS regularity score
+  // PMOS regularity score
   const reg = cycleRegularityScore();
   const pcosHTML = reg ? `<div class="pcos-score-card">
     <div class="pcos-score-letter ${reg.score}">${reg.score}</div>
     <div class="pcos-score-info">
-      <div class="pcos-score-h">PCOS · cycle regularity</div>
+      <div class="pcos-score-h">PMOS · cycle regularity</div>
       <div class="pcos-score-label">${reg.label}</div>
       <div class="pcos-score-desc">${reg.desc}</div>
       <div class="pcos-score-detail">
@@ -3057,7 +3057,7 @@ function generateMonthlyTakeaways(curEntries, prevEntries){
   return result;
 }
 
-// === PCOS CYCLE REGULARITY SCORE ===
+// === PMOS CYCLE REGULARITY SCORE ===
 function cycleRegularityScore(){
   const cycles = cycleLengthHistory();
   if(cycles.length < 2) return null;
@@ -3820,7 +3820,7 @@ function buildAppointmentsCard(){
       <datalist id="dl-clinics">${clinics.map(v=>`<option value="${v}">`).join('')}</datalist>
       <div class="med-form-field">
         <label class="med-form-label">เรื่องที่จะคุย</label>
-        <input id="appt-reason" placeholder="เช่น ติดตาม PCOS" autocomplete="off">
+        <input id="appt-reason" placeholder="เช่น ติดตาม PMOS" autocomplete="off">
       </div>
       <div class="med-form-field"><label class="med-form-label">บันทึกหลังพบหมอ (เติมทีหลังได้)</label><textarea id="appt-outcome" rows="2" placeholder="หมอแนะนำ... ปรับยา... ผลแล็ป..."></textarea></div>
       <div class="med-form-actions">
@@ -3927,10 +3927,10 @@ function buildLabsCard(){
     summary = `<b>${list.length} ผลล่าสุด</b>${flaggedCount?` · <span style="color:var(--red-dk)">ผิดปกติ ${flaggedCount}</span>`:` · ปกติทั้งหมด ✓`}${trending.length?` · trend ${trending.length}`:''}`;
   }
 
-  // Datalist: combine PCOS_LABS preset + user's history (both filterable via hiddenSuggestions)
+  // Datalist: combine PMOS_LABS preset + user's history (both filterable via hiddenSuggestions)
   const hiddenLabNames = new Set(getHiddenSuggestions('labName'));
   const histLabNames = uniqueVals(list, 'name', 'labName');
-  const presetLabNames = PCOS_LABS.filter(n => !hiddenLabNames.has(n));
+  const presetLabNames = PMOS_LABS.filter(n => !hiddenLabNames.has(n));
   const allLabNames = [...new Set([...presetLabNames, ...histLabNames])];
   const histUnits = uniqueVals(list, 'unit', 'labUnit');
   const histRefs = uniqueVals(list, 'refRange', 'labRef');
@@ -4285,7 +4285,7 @@ function openDoctorPrep(apptId){
     </div>`:''}
 
     <div style="margin-top:30px;padding-top:14px;border-top:1px solid #ddd;font-size:11px;color:#888;text-align:center">
-      สรุปอัตโนมัติจาก Bloom — PCOS Wellness Journal · ข้อมูลนี้ใช้ประกอบการพบหมอเท่านั้น
+      สรุปอัตโนมัติจาก Bloom — PMOS Wellness Journal · ข้อมูลนี้ใช้ประกอบการพบหมอเท่านั้น
     </div>
   `;
 
@@ -4356,7 +4356,7 @@ function buildSettings(){
 </div>
 
 <div class="card"><div class="sec">📏 รอบตัว (วัดเดือนละ 1 ครั้งก็พอ)</div>
-  <p class="small" style="margin-bottom:12px">PCOS มัก central obesity (ลงพุง) · WHR (waist-to-hip ratio) เป็น marker ที่แม่นกว่า BMI · ≥ 0.85 = เพิ่มความเสี่ยง insulin resistance</p>
+  <p class="small" style="margin-bottom:12px">PMOS มัก central obesity (ลงพุง) · WHR (waist-to-hip ratio) เป็น marker ที่แม่นกว่า BMI · ≥ 0.85 = เพิ่มความเสี่ยง insulin resistance</p>
   <div class="row" style="gap:14px;align-items:flex-start">
     <div style="flex:1">
       <div class="qb-l">รอบเอวล่าสุด (cm)</div>
@@ -4734,9 +4734,9 @@ function loadSampleData(){
     entries:{}, weekly:{}, monthly:{}, groceryList:[],
     medical:{
       appointments:[
-        {id:nid(),date:dateStr(addD(today,5)),doctor:'นพ.สมชาย วัฒนกิจ',clinic:'รพ. รามาธิบดี · แผนกสูตินรีเวช',reason:'ติดตาม PCOS · ดูผล lab รอบใหม่',outcome:'',createdAt:Date.now()},
+        {id:nid(),date:dateStr(addD(today,5)),doctor:'นพ.สมชาย วัฒนกิจ',clinic:'รพ. รามาธิบดี · แผนกสูตินรีเวช',reason:'ติดตาม PMOS · ดูผล lab รอบใหม่',outcome:'',createdAt:Date.now()},
         {id:nid(),date:dateStr(addD(today,21)),doctor:'พญ.มาลี ใจดี',clinic:'คลินิกหมอมาลี',reason:'follow-up Inositol · ปรับ dose',outcome:'',createdAt:Date.now()-100},
-        {id:nid(),date:dateStr(addD(today,-30)),doctor:'พญ.มาลี ใจดี',clinic:'คลินิกหมอมาลี',reason:'ตรวจ PCOS · ดู lab รอบแรก',outcome:'หมอบอกว่ามี insulin resistance เริ่มต้น เริ่ม Inositol 2g/วัน + Yazmin · กลับมา 1 เดือน ดู lab อีกครั้ง · แนะนำ low GI diet',createdAt:Date.now()-200},
+        {id:nid(),date:dateStr(addD(today,-30)),doctor:'พญ.มาลี ใจดี',clinic:'คลินิกหมอมาลี',reason:'ตรวจ PMOS · ดู lab รอบแรก',outcome:'หมอบอกว่ามี insulin resistance เริ่มต้น เริ่ม Inositol 2g/วัน + Yazmin · กลับมา 1 เดือน ดู lab อีกครั้ง · แนะนำ low GI diet',createdAt:Date.now()-200},
         {id:nid(),date:dateStr(addD(today,-60)),doctor:'พญ.มาลี ใจดี',clinic:'คลินิกหมอมาลี',reason:'ปรึกษาเรื่องประจำเดือนไม่สม่ำเสมอ',outcome:'แนะนำให้ตรวจ blood work + ultrasound · นัด follow-up เพื่อดูผล',createdAt:Date.now()-300}
       ],
       labs:[
@@ -4745,14 +4745,14 @@ function loadSampleData(){
         {id:nid(),date:dateStr(addD(today,-7)),name:'Fasting Insulin',value:'12.8',unit:'µIU/mL',refRange:'2-25',flag:'normal',notes:'ดีขึ้นต่อเนื่อง',createdAt:Date.now()-900},
         {id:nid(),date:dateStr(addD(today,-60)),name:'HbA1c',value:'5.9',unit:'%',refRange:'<5.7',flag:'high',notes:'pre-diabetes range',createdAt:Date.now()-800},
         {id:nid(),date:dateStr(addD(today,-30)),name:'HbA1c',value:'5.6',unit:'%',refRange:'<5.7',flag:'normal',notes:'กลับมาปกติแล้ว!',createdAt:Date.now()-750},
-        {id:nid(),date:dateStr(addD(today,-60)),name:'AMH',value:'6.5',unit:'ng/mL',refRange:'1.0-4.0',flag:'high',notes:'สูง · marker ของ PCOS',createdAt:Date.now()-700},
+        {id:nid(),date:dateStr(addD(today,-60)),name:'AMH',value:'6.5',unit:'ng/mL',refRange:'1.0-4.0',flag:'high',notes:'สูง · marker ของ PMOS',createdAt:Date.now()-700},
         {id:nid(),date:dateStr(addD(today,-30)),name:'Vit D (25-OH)',value:'22',unit:'ng/mL',refRange:'30-100',flag:'low',notes:'ขาด vit D · เริ่มกิน supplement 2000 IU',createdAt:Date.now()-650},
         {id:nid(),date:dateStr(addD(today,-7)),name:'Vit D (25-OH)',value:'38',unit:'ng/mL',refRange:'30-100',flag:'normal',notes:'ดีขึ้นหลังกิน supplement',createdAt:Date.now()-600},
         {id:nid(),date:dateStr(addD(today,-30)),name:'Testosterone (Total)',value:'68',unit:'ng/dL',refRange:'15-70',flag:'high',notes:'อยู่ขีดบน',createdAt:Date.now()-550},
         {id:nid(),date:dateStr(addD(today,-7)),name:'Testosterone (Total)',value:'52',unit:'ng/dL',refRange:'15-70',flag:'normal',notes:'ลดลงหลัง Spearmint',createdAt:Date.now()-500},
         {id:nid(),date:dateStr(addD(today,-30)),name:'TSH',value:'2.1',unit:'mIU/L',refRange:'0.4-4.0',flag:'normal',notes:'',createdAt:Date.now()-450},
         {id:nid(),date:dateStr(addD(today,-30)),name:'LH',value:'12.5',unit:'IU/L',refRange:'2-12',flag:'high',notes:'',createdAt:Date.now()-400},
-        {id:nid(),date:dateStr(addD(today,-30)),name:'FSH',value:'5.8',unit:'IU/L',refRange:'3-12',flag:'normal',notes:'LH/FSH = 2.16 (typical PCOS pattern)',createdAt:Date.now()-350}
+        {id:nid(),date:dateStr(addD(today,-30)),name:'FSH',value:'5.8',unit:'IU/L',refRange:'3-12',flag:'normal',notes:'LH/FSH = 2.16 (typical PMOS pattern)',createdAt:Date.now()-350}
       ],
       notes:[
         {id:nid(),date:dateStr(addD(today,-2)),text:'ถามหมอเรื่อง Inositol dose — ที่กินอยู่ Myo + D-chiro 40:1 ใช่หรือเปล่า? ควรเพิ่มเป็น 4g/วันมั้ย?',tag:'question',createdAt:Date.now()-1000},

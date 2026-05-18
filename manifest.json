@@ -1,7 +1,7 @@
 {
-  "name": "Bloom — PCOS Wellness Journal",
+  "name": "Bloom — PMOS Wellness Journal",
   "short_name": "Bloom",
-  "description": "บันทึกประจำวัน + ติดตามรอบเดือน + medical tracking สำหรับคน PCOS",
+  "description": "บันทึกประจำวัน + ติดตามรอบเดือน + medical tracking สำหรับคน PMOS",
   "start_url": "./",
   "display": "standalone",
   "orientation": "portrait",

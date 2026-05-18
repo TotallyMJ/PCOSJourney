@@ -1,6 +1,6 @@
-# 🌸 Bloom — PCOS Wellness Journal
+# 🌸 Bloom — PMOS Wellness Journal
 
-แอปบันทึกประจำวัน + ติดตามรอบเดือน + medical tracking สำหรับคน PCOS โดยเฉพาะ
+แอปบันทึกประจำวัน + ติดตามรอบเดือน + medical tracking สำหรับคน PMOS โดยเฉพาะ
 ออกแบบให้ใช้ง่าย ไม่กดดัน ไม่ซีเรียส และเข้าใจร่างกายตัวเองได้มากขึ้น
 
 ## ✨ Features
@@ -28,7 +28,7 @@
 - 🎯 3 takeaways (auto: ดีขึ้น/ต้องสังเกต/ทำได้ดี)
 - 📅 Calendar heatmap (แตะวันเพื่อย้อนดู)
 - 📊 ภาพรวม + เทียบเดือนก่อน
-- 🌟 PCOS Cycle Regularity Score (A/B/C/D)
+- 🌟 PMOS Cycle Regularity Score (A/B/C/D)
 - 🔬 อาการแยกตามช่วงรอบเดือน
 - 🥗 Food correlation auto
 - 💊 Meds adherence เป็น day-dot grid (เห็นทุกวัน)
